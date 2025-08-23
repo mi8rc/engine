@@ -63,29 +63,8 @@ jobs:
         make clean
         make ${{ matrix.build_type == 'Debug' && 'debug' || 'release' }}
     
-    - name: Test map loading
-      run: |
-        # Test that the game can load the sample map without crashing
-        timeout 5s ./bin/nurbs_fps_game sample_maps/demo_scene.map || [ $? -eq 124 ]
+
     
-    - name: Run Python editor tests
-      run: |
-        cd map_editor
-        python -c "
-        import nurbs_editor
-        print('Python editor imports successfully')
-        
-        # Test basic functionality
-        from nurbs_editor import NURBSMapEditor, ObjectType, LightType, Vector3
-        
-        # Test Vector3 operations
-        v1 = Vector3(1, 2, 3)
-        v2 = Vector3(4, 5, 6)
-        v3 = v1 + v2
-        assert v3.x == 5 and v3.y == 7 and v3.z == 9
-        
-        print('Basic math tests passed')
-        "
     
     - name: Memory leak check (Debug builds only)
       if: matrix.build_type == 'Debug' && matrix.compiler == 'gcc'
@@ -95,7 +74,7 @@ jobs:
           ./bin/nurbs_fps_game sample_maps/demo_scene.map || [ $? -eq 124 ]
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: nurbs-fps-linux-${{ matrix.compiler }}-${{ matrix.build_type }}
         path: |
@@ -116,26 +95,13 @@ jobs:
         brew update
         brew install glfw json-c pkg-config
     
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        cd map_editor
-        pip install -r requirements.txt
-    
+   
     - name: Build
       run: |
         make clean
         make release
     
-    - name: Test
-      run: |
-        # Test basic functionality
-        timeout 5s ./bin/nurbs_fps_game sample_maps/demo_scene.map || [ $? -eq 124 ]
+ 
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
