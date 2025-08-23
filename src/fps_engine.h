@@ -7,6 +7,9 @@
 #include <GL/glu.h>
 #include <stdbool.h>
 
+// Use legacy OpenGL for maximum compatibility
+#define USE_LEGACY_OPENGL 1
+
 #define MAX_OBJECTS 256
 #define MAX_LIGHTS 32
 

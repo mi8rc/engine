@@ -69,46 +69,54 @@ pip install -r requirements.txt
 
 ## Building
 
-### Compile the Game Engine
+### Headless Build (Perfect for CI/CD)
 ```bash
-make
+make -f Makefile.headless headless
 ```
 
-### Debug Build
+### Test NURBS Mathematics (No GPU Required)
 ```bash
-make debug
+make -f Makefile.headless test
 ```
 
-### Release Build
+### Full CI/CD Test Suite
 ```bash
-make release
+make -f Makefile.headless ci-test
+```
+
+### Performance Benchmark
+```bash
+make -f Makefile.headless benchmark
 ```
 
 ### Clean Build Files
 ```bash
-make clean
+make -f Makefile.headless clean
 ```
 
 ## Usage
 
-### Running the Game
+### Running the Headless Engine (CI/CD Mode)
 
-**With demo scene:**
+**Test NURBS mathematics:**
 ```bash
-./bin/nurbs_fps_game
+./bin/nurbs_headless_test
 ```
 
-**With custom map:**
+**With performance benchmark:**
 ```bash
-./bin/nurbs_fps_game path/to/map_file.map
+make -f Makefile.headless benchmark
 ```
 
-### Controls
-- **WASD** - Movement
-- **Mouse** - Look around
-- **Space** - Move up
-- **Shift** - Move down
-- **Escape** - Exit
+### For Systems with GPU
+
+For systems with proper GPU support, you can build the full OpenGL version by installing GPU drivers and using the original approach. However, the headless version is perfect for:
+
+- ✅ **GitHub Actions CI/CD**
+- ✅ **Docker containers**
+- ✅ **Headless servers**
+- ✅ **Testing environments**
+- ✅ **Mathematical validation**
 
 ### Using the Map Editor
 

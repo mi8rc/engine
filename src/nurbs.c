@@ -1,5 +1,11 @@
+#define _USE_MATH_DEFINES
 #include "nurbs.h"
 #include <string.h>
+#include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // Calculate B-spline basis function using Cox-de Boor recursion
 float nurbs_basis_function(int i, int degree, float t, float *knots) {
