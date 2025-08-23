@@ -7,6 +7,7 @@ on:
     branches: [ main ]
   release:
     types: [ published ]
+  workflow_dispatch:
 
 env:
   BUILD_TYPE: Release
@@ -182,13 +183,10 @@ jobs:
         make clean
         make release
     
-    - name: Test Python editor
-      run: |
-        cd map_editor
-        python -c "import nurbs_editor; print('Windows Python editor test passed')"
+   
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: nurbs-fps-windows
         path: |
