@@ -300,6 +300,14 @@ void camera_process_mouse_movement(Camera *camera, float xoffset, float yoffset,
     camera_update_vectors(camera);
 }
 
+void camera_process_mouse_scroll(Camera *camera, float yoffset) {
+    camera->zoom -= yoffset;
+    if (camera->zoom < 1.0f)
+        camera->zoom = 1.0f;
+    if (camera->zoom > 45.0f)
+        camera->zoom = 45.0f;
+}
+
 void camera_get_view_matrix(Camera *camera, float *matrix) {
     Vector3 center = vector3_add(camera->position, camera->front);
     matrix_look_at(matrix, camera->position, center, camera->up);
@@ -544,6 +552,12 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
     g_engine->camera.last_y = ypos;
     
     camera_process_mouse_movement(&g_engine->camera, xoffset, yoffset, true);
+}
+
+void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
+    (void)window;  // Suppress unused parameter warning
+    (void)xoffset; // Suppress unused parameter warning
+    camera_process_mouse_scroll(&g_engine->camera, (float)yoffset);
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
