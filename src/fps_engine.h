@@ -12,15 +12,30 @@
 
 // OpenGL 3.0+ function declarations for compatibility
 #ifndef GL_VERSION_3_0
-// Define GLsizeiptr if not available
-#ifndef GLsizeiptr
-#ifdef _WIN64
-typedef signed long long int GLsizeiptr;
+
+// Define APIENTRY if not available
+#ifndef APIENTRY
+#ifdef _WIN32
+#define APIENTRY __stdcall
 #else
-typedef signed long int GLsizeiptr;
+#define APIENTRY
 #endif
 #endif
 
+// Define OpenGL types if not available
+#ifndef GL_VERSION_1_5
+#if !defined(GLsizeiptr)
+#if defined(_WIN64) || defined(__LP64__)
+typedef long long GLsizeiptr;
+typedef long long GLintptr;
+#else
+typedef long GLsizeiptr;
+typedef long GLintptr;
+#endif
+#endif
+#endif
+
+// Function pointer types
 typedef void (APIENTRY *PFNGLGENVERTEXARRAYSPROC)(GLsizei n, GLuint *arrays);
 typedef void (APIENTRY *PFNGLBINDVERTEXARRAYPROC)(GLuint array);
 typedef void (APIENTRY *PFNGLDELETEVERTEXARRAYSPROC)(GLsizei n, const GLuint *arrays);
@@ -31,6 +46,7 @@ typedef void (APIENTRY *PFNGLDELETEBUFFERSPROC)(GLsizei n, const GLuint *buffers
 typedef void (APIENTRY *PFNGLVERTEXATTRIBPOINTERPROC)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
 typedef void (APIENTRY *PFNGLENABLEVERTEXATTRIBARRAYPROC)(GLuint index);
 
+// Function pointer declarations
 extern PFNGLGENVERTEXARRAYSPROC glGenVertexArrays;
 extern PFNGLBINDVERTEXARRAYPROC glBindVertexArray;
 extern PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays;
