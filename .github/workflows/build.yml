@@ -140,9 +140,146 @@ jobs:
         make clean
         make release
     
-   
+    - name: Bundle DLLs for portable distribution
+      shell: msys2 {0}
+      run: |
+        # Create portable distribution directory
+        mkdir -p portable-dist
+        
+        # Copy the executable
+        cp bin/nurbs_fps_game.exe portable-dist/
+        
+        # Copy sample maps and editor
+        cp -r sample_maps portable-dist/
+        cp -r map_editor portable-dist/
+        cp README.md portable-dist/
+        
+        # Create a list to track copied DLLs to avoid duplicates
+        declare -A copied_dlls
+        
+        # Function to copy DLL if not already copied
+        copy_dll() {
+          local dll_path="$1"
+          local target_dir="$2"
+          local dll_name=$(basename "$dll_path")
+          
+          if [ -f "$dll_path" ] && [ -z "${copied_dlls[$dll_name]}" ]; then
+            cp "$dll_path" "$target_dir/"
+            copied_dlls[$dll_name]="1"
+            echo "Copied: $dll_name"
+          fi
+        }
+        
+        # Get all DLL dependencies using ldd
+        echo "Analyzing DLL dependencies..."
+        
+        # First pass: get direct dependencies
+        ldd bin/nurbs_fps_game.exe | grep -E "(mingw64|msys64)" | awk '{print $3}' | while read dll; do
+          if [ -f "$dll" ]; then
+            copy_dll "$dll" "portable-dist"
+          fi
+        done
+        
+        # Second pass: get dependencies of dependencies
+        for dll in portable-dist/*.dll 2>/dev/null; do
+          [ -f "$dll" ] || continue
+          ldd "$dll" 2>/dev/null | grep -E "(mingw64|msys64)" | awk '{print $3}' | while read dep; do
+            if [ -f "$dep" ]; then
+              copy_dll "$dep" "portable-dist"
+            fi
+          done
+        done
+        
+        # Copy common MSYS2 runtime DLLs that might be needed
+        MINGW_PREFIX="/mingw64"
+        COMMON_DLLS=(
+          "libgcc_s_seh-1.dll"
+          "libwinpthread-1.dll"
+          "libstdc++-6.dll"
+          "libglfw3.dll"
+          "libjson-c-5.dll"
+        )
+        
+        for dll in "${COMMON_DLLS[@]}"; do
+          if [ -f "$MINGW_PREFIX/bin/$dll" ]; then
+            cp "$MINGW_PREFIX/bin/$dll" portable-dist/
+            echo "Copied common DLL: $dll"
+          fi
+        done
+        
+        # Create a simple launcher script
+        cat > portable-dist/run_game.bat << 'EOF'
+        @echo off
+        echo ============================================
+        echo          NURBS FPS Game - Portable
+        echo ============================================
+        echo.
+        echo This is a revolutionary FPS game engine that
+        echo uses NURBS surfaces instead of polygons!
+        echo.
+        echo Controls:
+        echo   WASD - Move
+        echo   Mouse - Look around
+        echo   Mouse Wheel - Zoom in/out
+        echo   Space - Move up
+        echo   Left Shift - Move down
+        echo   Escape - Exit game
+        echo.
+        echo Loading sample scene...
+        nurbs_fps_game.exe sample_maps/demo_scene.map
+        if errorlevel 1 (
+            echo.
+            echo Error loading scene, starting without map...
+            nurbs_fps_game.exe
+        )
+        pause
+        EOF
+        
+        # Create a README for the portable distribution
+        cat > portable-dist/PORTABLE_README.txt << 'EOF'
+        NURBS FPS Game - Portable Windows Distribution
+        =============================================
+        
+        This portable distribution includes all necessary DLLs and files
+        to run the NURBS FPS game on Windows without installing additional
+        dependencies.
+        
+        Files included:
+        - nurbs_fps_game.exe     : The main game executable
+        - *.dll files            : Required MSYS2/MinGW runtime libraries
+        - sample_maps/           : Example game maps and scenes
+        - map_editor/            : Python-based map editor tools
+        - run_game.bat           : Convenient launcher script
+        - README.md              : Main project documentation
+        
+        Quick Start:
+        1. Double-click run_game.bat to start the game
+        2. Or run nurbs_fps_game.exe directly from command line
+        
+        System Requirements:
+        - Windows 7 or later (64-bit)
+        - OpenGL 3.3 compatible graphics card
+        - ~50MB free disk space
+        
+        Note: This game uses NURBS (Non-Uniform Rational B-Splines) 
+        surfaces for all geometry instead of traditional polygons,
+        making it unique in the gaming world!
+        
+        For more information, see README.md
+        EOF
+        
+        # List all files in the distribution
+        echo "Portable distribution contents:"
+        find portable-dist -type f | sort
     
-    - name: Upload build artifacts
+    - name: Upload portable distribution
+      uses: actions/upload-artifact@v4
+      with:
+        name: nurbs-fps-windows-portable
+        path: portable-dist/
+        retention-days: 30
+    
+    - name: Upload build artifacts (legacy)
       uses: actions/upload-artifact@v4
       with:
         name: nurbs-fps-windows
@@ -282,8 +419,14 @@ jobs:
         tar -czf nurbs-fps-linux.tar.gz nurbs-fps-linux-*
         tar -czf nurbs-fps-macos.tar.gz nurbs-fps-macos
         zip -r nurbs-fps-windows.zip nurbs-fps-windows
+        
+        # Create portable Windows distribution archive
+        if [ -d "nurbs-fps-windows-portable" ]; then
+          zip -r nurbs-fps-windows-portable.zip nurbs-fps-windows-portable
+          echo "Created portable Windows distribution"
+        fi
     
-    - name: Upload release assets
+    - name: Upload Linux release asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -292,6 +435,37 @@ jobs:
         asset_path: ./nurbs-fps-linux.tar.gz
         asset_name: nurbs-fps-linux.tar.gz
         asset_content_type: application/gzip
+    
+    - name: Upload macOS release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./nurbs-fps-macos.tar.gz
+        asset_name: nurbs-fps-macos.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload Windows release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./nurbs-fps-windows.zip
+        asset_name: nurbs-fps-windows.zip
+        asset_content_type: application/zip
+    
+    - name: Upload Windows portable release asset
+      if: hashFiles('nurbs-fps-windows-portable.zip') != ''
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./nurbs-fps-windows-portable.zip
+        asset_name: nurbs-fps-windows-portable.zip
+        asset_content_type: application/zip
 
   container-build:
     runs-on: ubuntu-latest
