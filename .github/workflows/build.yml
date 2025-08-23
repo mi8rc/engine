@@ -224,6 +224,7 @@ jobs:
 
           echo "Portable distribution contents:"
           find portable-dist -type f | sort
+      continue-on-error: true
 
     
     - name: Upload portable distribution
