@@ -1,0 +1,19 @@
+# NURBS Map Editor Requirements
+
+# Core GUI
+tkinter  # Usually comes with Python
+
+# 3D Graphics (optional - for enhanced viewport)
+pygame>=2.1.0
+PyOpenGL>=3.1.5
+PyOpenGL-accelerate>=3.1.5
+
+# Math and data handling
+numpy>=1.21.0
+
+# JSON handling (built-in with Python)
+# json
+
+# For future enhancements
+# matplotlib>=3.5.0  # For NURBS curve visualization
+# scipy>=1.7.0       # For advanced mathematical operations
