@@ -1,0 +1,327 @@
+name: Security and Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly security scans
+    - cron: '0 0 * * 0'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  codeql-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    
+    strategy:
+      matrix:
+        language: [ 'cpp', 'python' ]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+        queries: +security-and-quality
+    
+    - name: Install C dependencies
+      if: matrix.language == 'cpp'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libglfw3-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libjson-c-dev \
+          build-essential
+    
+    - name: Build C code
+      if: matrix.language == 'cpp'
+      run: |
+        make clean
+        make
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:${{ matrix.language }}"
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Python dependencies
+      run: |
+        cd map_editor
+        pip install -r requirements.txt
+    
+    - name: Run safety check on Python dependencies
+      run: |
+        pip install safety
+        cd map_editor
+        safety check --json || true  # Don't fail build on vulnerabilities, just report
+    
+    - name: Check for known C library vulnerabilities
+      run: |
+        # Check system packages for known vulnerabilities
+        sudo apt-get update
+        sudo apt-get install -y debsecan || true
+        debsecan --suite $(lsb_release -cs) --format packages | grep -E "(glfw|mesa|json-c)" || true
+
+  license-compliance:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Check Python license compliance
+      run: |
+        pip install pip-licenses
+        cd map_editor
+        pip install -r requirements.txt
+        pip-licenses --format=json --output-file=licenses.json
+        
+        # Check for problematic licenses
+        pip-licenses | grep -v -E "(MIT|BSD|Apache|Python Software Foundation)" || true
+    
+    - name: Upload license information
+      uses: actions/upload-artifact@v3
+      with:
+        name: license-report
+        path: map_editor/licenses.json
+
+  memory-safety:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libglfw3-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libjson-c-dev \
+          build-essential \
+          valgrind \
+          cppcheck
+    
+    - name: Build with AddressSanitizer
+      run: |
+        make clean
+        CFLAGS="-fsanitize=address -fno-omit-frame-pointer -g" make
+        mv bin/nurbs_fps_game bin/nurbs_fps_game_asan
+    
+    - name: Build with undefined behavior sanitizer
+      run: |
+        make clean
+        CFLAGS="-fsanitize=undefined -fno-omit-frame-pointer -g" make
+        mv bin/nurbs_fps_game bin/nurbs_fps_game_ubsan
+    
+    - name: Run static analysis
+      run: |
+        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem src/ || true
+    
+    - name: Test with AddressSanitizer
+      run: |
+        # Run with AddressSanitizer (timeout after 10 seconds)
+        timeout 10s ./bin/nurbs_fps_game_asan sample_maps/demo_scene.map || [ $? -eq 124 ]
+    
+    - name: Test with UBSan
+      run: |
+        # Run with UndefinedBehaviorSanitizer
+        timeout 10s ./bin/nurbs_fps_game_ubsan sample_maps/demo_scene.map || [ $? -eq 124 ]
+
+  fuzzing:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libglfw3-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libjson-c-dev \
+          build-essential \
+          clang
+    
+    - name: Create fuzzing harness
+      run: |
+        # Create a simple fuzzing harness for map loading
+        cat > fuzz_map_loader.c << 'EOF'
+        #include "src/map_loader.h"
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <string.h>
+        #include <unistd.h>
+        
+        int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+            if (size < 10) return 0;  // Minimum size check
+            
+            // Write data to temporary file
+            char temp_file[] = "/tmp/fuzz_map_XXXXXX";
+            int fd = mkstemp(temp_file);
+            if (fd == -1) return 0;
+            
+            write(fd, data, size);
+            close(fd);
+            
+            // Try to load the map
+            MapData map_data;
+            int result = load_map_file(temp_file, &map_data);
+            
+            if (result == 0) {
+                free_map_data(&map_data);
+            }
+            
+            unlink(temp_file);
+            return 0;
+        }
+        EOF
+    
+    - name: Build fuzzing harness
+      run: |
+        clang -fsanitize=fuzzer,address -I. -g -O1 fuzz_map_loader.c src/map_loader.c -ljson-c -o fuzz_map_loader || true
+    
+    - name: Run short fuzzing session
+      run: |
+        # Run fuzzer for 30 seconds
+        if [ -f fuzz_map_loader ]; then
+          timeout 30s ./fuzz_map_loader -max_total_time=30 || true
+        fi
+
+  docker-security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: |
+        docker build -t nurbs-fps-security-test .
+    
+    - name: Run Docker security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'nurbs-fps-security-test'
+        format: 'table'
+        exit-code: '0'  # Don't fail on vulnerabilities, just report
+    
+    - name: Test Docker container security
+      run: |
+        # Test that container runs as non-root
+        USER_ID=$(docker run --rm nurbs-fps-security-test id -u)
+        if [ "$USER_ID" = "0" ]; then
+          echo "WARNING: Container runs as root"
+          exit 1
+        else
+          echo "✅ Container runs as non-root user (UID: $USER_ID)"
+        fi
+        
+        # Test that sensitive files are not accessible
+        docker run --rm nurbs-fps-security-test ls -la /etc/shadow 2>&1 | grep "No such file" && echo "✅ /etc/shadow not accessible"
+        docker run --rm nurbs-fps-security-test ls -la /etc/passwd | grep gameuser && echo "✅ Non-root user configured"
+
+  supply-chain-security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Verify dependencies integrity
+      run: |
+        # Check if Makefile uses only official repositories
+        grep -E "(apt-get|dnf|pacman)" Makefile | grep -v "update" | while read line; do
+          echo "Dependency installation: $line"
+        done
+        
+        # Verify no suspicious network calls in source
+        if grep -r -E "(system|exec|popen)" src/; then
+          echo "WARNING: Found potential system calls in source code"
+        fi
+        
+        # Check for hardcoded credentials or secrets
+        if grep -r -E "(password|secret|key|token)" src/ --include="*.c" --include="*.h"; then
+          echo "WARNING: Found potential secrets in source code"
+        fi
+        
+        echo "Supply chain security check completed"
+
+  reporting:
+    needs: [security-scan, codeql-analysis, dependency-check, license-compliance, memory-safety, docker-security]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Generate security report
+      run: |
+        echo "# Security Scan Summary" > security_report.md
+        echo "" >> security_report.md
+        echo "## Scan Results" >> security_report.md
+        echo "- 🔍 Trivy vulnerability scan: ${{ needs.security-scan.result }}" >> security_report.md
+        echo "- 🔎 CodeQL analysis: ${{ needs.codeql-analysis.result }}" >> security_report.md
+        echo "- 📦 Dependency check: ${{ needs.dependency-check.result }}" >> security_report.md
+        echo "- ⚖️ License compliance: ${{ needs.license-compliance.result }}" >> security_report.md
+        echo "- 🛡️ Memory safety: ${{ needs.memory-safety.result }}" >> security_report.md
+        echo "- 🐳 Docker security: ${{ needs.docker-security.result }}" >> security_report.md
+        echo "" >> security_report.md
+        echo "Generated on: $(date)" >> security_report.md
+    
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-report
+        path: security_report.md

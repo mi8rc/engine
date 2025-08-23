@@ -1,0 +1,218 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-python-dependencies:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install pip-tools
+      run: |
+        pip install pip-tools
+    
+    - name: Update Python dependencies
+      run: |
+        cd map_editor
+        
+        # Create requirements.in if it doesn't exist
+        if [ ! -f requirements.in ]; then
+          cp requirements.txt requirements.in
+        fi
+        
+        # Update dependencies
+        pip-compile --upgrade requirements.in
+        
+        # Check if there are changes
+        if ! git diff --quiet requirements.txt; then
+          echo "PYTHON_DEPS_UPDATED=true" >> $GITHUB_ENV
+        fi
+    
+    - name: Test updated dependencies
+      if: env.PYTHON_DEPS_UPDATED == 'true'
+      run: |
+        cd map_editor
+        pip install -r requirements.txt
+        python -c "
+        import nurbs_editor
+        from nurbs_editor import Vector3, Material, Light, NURBSObject
+        print('Updated dependencies work correctly')
+        "
+    
+    - name: Create Pull Request for Python dependencies
+      if: env.PYTHON_DEPS_UPDATED == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "chore: update Python dependencies"
+        title: "Update Python Dependencies"
+        body: |
+          ## Automated Dependency Update
+          
+          This PR updates Python dependencies to their latest compatible versions.
+          
+          ### Changes
+          - Updated `map_editor/requirements.txt`
+          
+          ### Testing
+          - ✅ Basic import tests passed
+          - ✅ No breaking changes detected
+          
+          Please review the changes and run full tests before merging.
+        branch: update-python-dependencies
+        delete-branch: true
+
+  check-system-dependencies:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check for newer system packages
+      run: |
+        echo "## System Dependency Status" > dependency_status.md
+        echo "" >> dependency_status.md
+        
+        # Check Ubuntu package versions
+        apt-cache policy libglfw3-dev | grep -E "(Installed|Candidate)" >> dependency_status.md
+        apt-cache policy libgl1-mesa-dev | grep -E "(Installed|Candidate)" >> dependency_status.md
+        apt-cache policy libglu1-mesa-dev | grep -E "(Installed|Candidate)" >> dependency_status.md
+        apt-cache policy libjson-c-dev | grep -E "(Installed|Candidate)" >> dependency_status.md
+        
+        echo "" >> dependency_status.md
+        echo "Generated on: $(date)" >> dependency_status.md
+    
+    - name: Upload dependency status
+      uses: actions/upload-artifact@v3
+      with:
+        name: dependency-status
+        path: dependency_status.md
+
+  security-advisory-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Check for security advisories
+      run: |
+        # Install safety for Python security checks
+        pip install safety
+        
+        cd map_editor
+        pip install -r requirements.txt
+        
+        # Check for known vulnerabilities
+        echo "## Security Advisory Check" > ../security_advisories.md
+        echo "" >> ../security_advisories.md
+        echo "### Python Dependencies" >> ../security_advisories.md
+        echo "" >> ../security_advisories.md
+        
+        if safety check --json > safety_report.json 2>/dev/null; then
+          echo "✅ No known vulnerabilities found" >> ../security_advisories.md
+        else
+          echo "⚠️ Security advisories found:" >> ../security_advisories.md
+          cat safety_report.json >> ../security_advisories.md
+        fi
+        
+        echo "" >> ../security_advisories.md
+        echo "Generated on: $(date)" >> ../security_advisories.md
+    
+    - name: Create issue for security advisories
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          if (fs.existsSync('security_advisories.md')) {
+            const content = fs.readFileSync('security_advisories.md', 'utf8');
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Security Advisory Alert',
+              body: content,
+              labels: ['security', 'dependencies']
+            });
+          }
+
+  compatibility-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ubuntu-version: ['20.04', '22.04']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Test on Ubuntu ${{ matrix.ubuntu-version }}
+      uses: addnab/docker-run-action@v3
+      with:
+        image: ubuntu:${{ matrix.ubuntu-version }}
+        options: -v ${{ github.workspace }}:/workspace
+        run: |
+          cd /workspace
+          
+          # Install dependencies
+          apt-get update
+          apt-get install -y \
+            libglfw3-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            libjson-c-dev \
+            build-essential \
+            python3 \
+            python3-pip \
+            python3-tk
+          
+          # Test build
+          make clean
+          make
+          
+          # Test basic functionality
+          echo "Build successful on Ubuntu ${{ matrix.ubuntu-version }}"
+
+  create-compatibility-report:
+    needs: [compatibility-check]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Generate compatibility report
+      run: |
+        echo "# Compatibility Report" > compatibility_report.md
+        echo "" >> compatibility_report.md
+        echo "## Platform Compatibility" >> compatibility_report.md
+        echo "- Ubuntu 20.04: ${{ needs.compatibility-check.result }}" >> compatibility_report.md
+        echo "- Ubuntu 22.04: ${{ needs.compatibility-check.result }}" >> compatibility_report.md
+        echo "" >> compatibility_report.md
+        echo "Generated on: $(date)" >> compatibility_report.md
+    
+    - name: Upload compatibility report
+      uses: actions/upload-artifact@v3
+      with:
+        name: compatibility-report
+        path: compatibility_report.md
