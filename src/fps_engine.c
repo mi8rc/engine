@@ -1,6 +1,25 @@
 #include "fps_engine.h"
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
+
+// Define M_PI if not available (MSYS2/Windows compatibility)
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+// OpenGL function pointers for compatibility
+#ifndef GL_VERSION_3_0
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = NULL;
+PFNGLGENBUFFERSPROC glGenBuffers = NULL;
+PFNGLBINDBUFFERPROC glBindBuffer = NULL;
+PFNGLBUFFERDATAPROC glBufferData = NULL;
+PFNGLDELETEBUFFERSPROC glDeleteBuffers = NULL;
+PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer = NULL;
+PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = NULL;
+#endif
 
 // Global engine pointer for callbacks
 static FPSEngine *g_engine = NULL;
@@ -78,6 +97,30 @@ const char *fragment_shader_source =
 "    FragColor = vec4(result, 1.0);\n"
 "}\n";
 
+// Load OpenGL extensions for compatibility
+int load_opengl_extensions(void) {
+#ifndef GL_VERSION_3_0
+    // Load OpenGL 3.0+ functions using GLFW
+    glGenVertexArrays = (PFNGLGENVERTEXARRAYSPROC)glfwGetProcAddress("glGenVertexArrays");
+    glBindVertexArray = (PFNGLBINDVERTEXARRAYPROC)glfwGetProcAddress("glBindVertexArray");
+    glDeleteVertexArrays = (PFNGLDELETEVERTEXARRAYSPROC)glfwGetProcAddress("glDeleteVertexArrays");
+    glGenBuffers = (PFNGLGENBUFFERSPROC)glfwGetProcAddress("glGenBuffers");
+    glBindBuffer = (PFNGLBINDBUFFERPROC)glfwGetProcAddress("glBindBuffer");
+    glBufferData = (PFNGLBUFFERDATAPROC)glfwGetProcAddress("glBufferData");
+    glDeleteBuffers = (PFNGLDELETEBUFFERSPROC)glfwGetProcAddress("glDeleteBuffers");
+    glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)glfwGetProcAddress("glVertexAttribPointer");
+    glEnableVertexAttribArray = (PFNGLENABLEVERTEXATTRIBARRAYPROC)glfwGetProcAddress("glEnableVertexAttribArray");
+    
+    // Check if all functions were loaded successfully
+    if (!glGenVertexArrays || !glBindVertexArray || !glDeleteVertexArrays ||
+        !glGenBuffers || !glBindBuffer || !glBufferData || !glDeleteBuffers ||
+        !glVertexAttribPointer || !glEnableVertexAttribArray) {
+        return -1;
+    }
+#endif
+    return 0;
+}
+
 // Initialize FPS engine
 int fps_engine_init(FPSEngine *engine, int width, int height, const char *title) {
     g_engine = engine;
@@ -102,6 +145,12 @@ int fps_engine_init(FPSEngine *engine, int width, int height, const char *title)
     }
     
     glfwMakeContextCurrent(engine->window);
+    
+    // Load OpenGL extensions for compatibility
+    if (load_opengl_extensions() != 0) {
+        fprintf(stderr, "Failed to load required OpenGL extensions\n");
+        return -1;
+    }
     
     // Set callbacks
     glfwSetFramebufferSizeCallback(engine->window, framebuffer_size_callback);
@@ -438,6 +487,7 @@ void fps_engine_cleanup(FPSEngine *engine) {
 
 // GLFW callbacks
 void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
+    (void)window; // Suppress unused parameter warning
     if (g_engine->camera.first_mouse) {
         g_engine->camera.last_x = xpos;
         g_engine->camera.last_y = ypos;
@@ -454,6 +504,9 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+    (void)window;   // Suppress unused parameter warning
+    (void)scancode; // Suppress unused parameter warning
+    (void)mods;     // Suppress unused parameter warning
     if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS)
             g_engine->input.keys[key] = true;
@@ -463,6 +516,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 }
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+    (void)window; // Suppress unused parameter warning
     glViewport(0, 0, width, height);
     g_engine->screen_width = width;
     g_engine->screen_height = height;
