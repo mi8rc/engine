@@ -54,17 +54,14 @@ jobs:
       run: |
         export CC=gcc
         make clean
-        make ${{ matrix.build_type == 'Debug' && 'debug' || 'release' }}
+        make ${{ matrix.build_type == 'Debug' ? 'debug' : 'release' }}
     
     - name: Build with Clang
       if: matrix.compiler == 'clang'
       run: |
         export CC=clang
         make clean
-        make ${{ matrix.build_type == 'Debug' && 'debug' || 'release' }}
-    
-
-    
+        make ${{ matrix.build_type == 'Debug' ? 'debug' : 'release' }}
     
     - name: Memory leak check (Debug builds only)
       if: matrix.build_type == 'Debug' && matrix.compiler == 'gcc'
@@ -95,13 +92,10 @@ jobs:
         brew update
         brew install glfw json-c pkg-config
     
-   
     - name: Build
       run: |
         make clean
         make release
-    
- 
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
@@ -130,8 +124,6 @@ jobs:
           mingw-w64-x86_64-json-c
           mingw-w64-x86_64-pkg-config
           make
-    
-
     
     - name: Build with MSYS2
       shell: msys2 {0}
