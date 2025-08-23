@@ -1,0 +1,444 @@
+name: Test Map Editor
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'map_editor/**'
+      - '.github/workflows/test-editor.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'map_editor/**'
+
+jobs:
+  test-editor-functionality:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-tk xvfb
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd map_editor
+        pip install -r requirements.txt
+        # Install testing dependencies
+        pip install pytest pytest-cov pytest-mock
+    
+    - name: Create test file for map editor
+      run: |
+        cd map_editor
+        cat > test_nurbs_editor.py << 'EOF'
+        import pytest
+        import json
+        import tempfile
+        import os
+        from unittest.mock import Mock, patch
+        
+        # Import editor components
+        from nurbs_editor import (
+            NURBSMapEditor, Vector3, Material, Light, NURBSObject, 
+            ObjectType, LightType
+        )
+        
+        class TestVector3:
+            def test_vector3_creation(self):
+                v = Vector3(1, 2, 3)
+                assert v.x == 1
+                assert v.y == 2
+                assert v.z == 3
+            
+            def test_vector3_addition(self):
+                v1 = Vector3(1, 2, 3)
+                v2 = Vector3(4, 5, 6)
+                v3 = v1 + v2
+                assert v3.x == 5
+                assert v3.y == 7
+                assert v3.z == 9
+            
+            def test_vector3_subtraction(self):
+                v1 = Vector3(4, 5, 6)
+                v2 = Vector3(1, 2, 3)
+                v3 = v1 - v2
+                assert v3.x == 3
+                assert v3.y == 3
+                assert v3.z == 3
+            
+            def test_vector3_multiplication(self):
+                v = Vector3(1, 2, 3)
+                v2 = v * 2
+                assert v2.x == 2
+                assert v2.y == 4
+                assert v2.z == 6
+        
+        class TestMaterial:
+            def test_material_creation(self):
+                mat = Material()
+                assert isinstance(mat.ambient, Vector3)
+                assert isinstance(mat.diffuse, Vector3)
+                assert isinstance(mat.specular, Vector3)
+                assert mat.shininess == 32.0
+        
+        class TestLight:
+            def test_light_creation(self):
+                light = Light()
+                assert light.name == "Light"
+                assert light.light_type == LightType.POINT
+                assert light.intensity == 1.0
+            
+            def test_light_with_parameters(self):
+                light = Light(
+                    name="TestLight",
+                    position=Vector3(1, 2, 3),
+                    color=Vector3(1, 0, 0),
+                    intensity=2.0,
+                    light_type=LightType.SPOT
+                )
+                assert light.name == "TestLight"
+                assert light.position.x == 1
+                assert light.color.x == 1
+                assert light.intensity == 2.0
+                assert light.light_type == LightType.SPOT
+        
+        class TestNURBSObject:
+            def test_object_creation(self):
+                obj = NURBSObject()
+                assert obj.name == "Object"
+                assert obj.object_type == ObjectType.SPHERE
+                assert isinstance(obj.material, Material)
+                assert obj.is_collidable == True
+            
+            def test_object_with_parameters(self):
+                obj = NURBSObject(
+                    name="TestSphere",
+                    object_type=ObjectType.SPHERE,
+                    position=Vector3(1, 2, 3),
+                    parameters={"radius": 2.0}
+                )
+                assert obj.name == "TestSphere"
+                assert obj.object_type == ObjectType.SPHERE
+                assert obj.position.x == 1
+                assert obj.parameters["radius"] == 2.0
+        
+        class TestMapEditor:
+            @patch('tkinter.Tk')
+            def test_editor_initialization(self, mock_tk):
+                # Mock tkinter to avoid GUI creation
+                mock_root = Mock()
+                mock_tk.return_value = mock_root
+                
+                editor = NURBSMapEditor()
+                assert len(editor.objects) == 0
+                assert len(editor.lights) == 0
+                assert editor.selected_object is None
+                assert editor.selected_light is None
+            
+            @patch('tkinter.Tk')
+            def test_add_object(self, mock_tk):
+                mock_root = Mock()
+                mock_tk.return_value = mock_root
+                
+                editor = NURBSMapEditor()
+                editor.add_object(ObjectType.SPHERE)
+                
+                assert len(editor.objects) == 1
+                assert editor.objects[0].object_type == ObjectType.SPHERE
+                assert editor.selected_object == editor.objects[0]
+            
+            @patch('tkinter.Tk')
+            def test_add_light(self, mock_tk):
+                mock_root = Mock()
+                mock_tk.return_value = mock_root
+                
+                editor = NURBSMapEditor()
+                editor.add_light(LightType.POINT)
+                
+                assert len(editor.lights) == 1
+                assert editor.lights[0].light_type == LightType.POINT
+                assert editor.selected_light == editor.lights[0]
+            
+            @patch('tkinter.Tk')
+            @patch('tkinter.filedialog.asksaveasfilename')
+            @patch('builtins.open')
+            def test_save_scene(self, mock_open, mock_savedialog, mock_tk):
+                mock_root = Mock()
+                mock_tk.return_value = mock_root
+                mock_savedialog.return_value = "test.json"
+                mock_file = Mock()
+                mock_open.return_value.__enter__.return_value = mock_file
+                
+                editor = NURBSMapEditor()
+                editor.add_object(ObjectType.SPHERE)
+                editor.add_light(LightType.POINT)
+                
+                # Mock the messagebox to avoid GUI
+                with patch('tkinter.messagebox.showinfo'):
+                    editor.save_scene()
+                
+                mock_open.assert_called_once()
+                mock_file.write.assert_called()
+            
+            @patch('tkinter.Tk')
+            def test_export_for_game(self, mock_tk):
+                mock_root = Mock()
+                mock_tk.return_value = mock_root
+                
+                editor = NURBSMapEditor()
+                editor.add_object(ObjectType.SPHERE)
+                editor.add_light(LightType.POINT)
+                
+                # Test export data structure
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.map', delete=False) as f:
+                    filename = f.name
+                
+                try:
+                    with patch('tkinter.filedialog.asksaveasfilename', return_value=filename):
+                        with patch('tkinter.messagebox.showinfo'):
+                            editor.export_for_game()
+                    
+                    # Verify exported file is valid JSON
+                    with open(filename, 'r') as f:
+                        data = json.load(f)
+                    
+                    assert 'version' in data
+                    assert 'objects' in data
+                    assert 'lights' in data
+                    assert len(data['objects']) == 1
+                    assert len(data['lights']) == 1
+                    
+                    # Verify object structure
+                    obj = data['objects'][0]
+                    assert 'name' in obj
+                    assert 'type' in obj
+                    assert 'position' in obj
+                    assert 'material' in obj
+                    
+                    # Verify light structure
+                    light = data['lights'][0]
+                    assert 'name' in light
+                    assert 'type' in light
+                    assert 'position' in light
+                    assert 'color' in light
+                    
+                finally:
+                    os.unlink(filename)
+        
+        if __name__ == '__main__':
+            pytest.main([__file__])
+        EOF
+    
+    - name: Run tests with virtual display
+      run: |
+        cd map_editor
+        xvfb-run -a python -m pytest test_nurbs_editor.py -v --cov=nurbs_editor --cov-report=xml
+    
+    - name: Test map file validation
+      run: |
+        cd map_editor
+        python -c "
+        import json
+        import os
+        
+        # Test loading the sample map
+        with open('../sample_maps/demo_scene.map', 'r') as f:
+            data = json.load(f)
+        
+        # Validate structure
+        assert 'version' in data
+        assert 'objects' in data
+        assert 'lights' in data
+        
+        print('Sample map validation passed')
+        
+        # Test creating and validating a new map
+        from nurbs_editor import NURBSMapEditor, ObjectType, LightType
+        import tempfile
+        from unittest.mock import patch, Mock
+        
+        # Mock GUI components
+        with patch('tkinter.Tk'):
+            editor = NURBSMapEditor()
+            editor.add_object(ObjectType.SPHERE)
+            editor.add_light(LightType.POINT)
+            
+            # Export to temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.map', delete=False) as f:
+                temp_filename = f.name
+            
+            try:
+                with patch('tkinter.filedialog.asksaveasfilename', return_value=temp_filename):
+                    with patch('tkinter.messagebox.showinfo'):
+                        editor.export_for_game()
+                
+                # Validate exported file
+                with open(temp_filename, 'r') as f:
+                    exported_data = json.load(f)
+                
+                assert 'objects' in exported_data
+                assert 'lights' in exported_data
+                assert len(exported_data['objects']) == 1
+                assert len(exported_data['lights']) == 1
+                
+                print('Map export validation passed')
+                
+            finally:
+                os.unlink(temp_filename)
+        "
+    
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.9'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./map_editor/coverage.xml
+        flags: python
+        name: codecov-umbrella
+
+  test-cross-platform:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9']
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-tk xvfb
+    
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # tkinter should be available by default on macOS
+        echo "macOS setup complete"
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd map_editor
+        pip install -r requirements.txt
+    
+    - name: Test editor imports (Windows/macOS)
+      if: matrix.os != 'ubuntu-latest'
+      run: |
+        cd map_editor
+        python -c "
+        import nurbs_editor
+        from nurbs_editor import Vector3, Material, Light, NURBSObject
+        print('Editor imports successfully on ${{ matrix.os }}')
+        
+        # Test basic functionality without GUI
+        v = Vector3(1, 2, 3)
+        assert v.x == 1
+        print('Basic tests passed on ${{ matrix.os }}')
+        "
+    
+    - name: Test editor imports (Ubuntu with virtual display)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        cd map_editor
+        xvfb-run -a python -c "
+        import nurbs_editor
+        from nurbs_editor import Vector3, Material, Light, NURBSObject
+        print('Editor imports successfully on Ubuntu')
+        
+        # Test basic functionality
+        v = Vector3(1, 2, 3)
+        assert v.x == 1
+        print('Basic tests passed on Ubuntu')
+        "
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: [test-editor-functionality]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libglfw3-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libjson-c-dev \
+          build-essential \
+          python3-tk \
+          xvfb
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        cd map_editor
+        pip install -r requirements.txt
+    
+    - name: Build C engine
+      run: |
+        make clean
+        make
+    
+    - name: Test full workflow
+      run: |
+        # Create a test map with the Python editor
+        cd map_editor
+        xvfb-run -a python -c "
+        from nurbs_editor import NURBSMapEditor, ObjectType, LightType
+        from unittest.mock import patch, Mock
+        import tempfile
+        import os
+        
+        # Create editor and add objects
+        with patch('tkinter.Tk'):
+            editor = NURBSMapEditor()
+            editor.add_object(ObjectType.SPHERE)
+            editor.add_object(ObjectType.PLANE)
+            editor.add_light(LightType.POINT)
+            
+            # Export map
+            map_file = '../test_integration.map'
+            with patch('tkinter.filedialog.asksaveasfilename', return_value=map_file):
+                with patch('tkinter.messagebox.showinfo'):
+                    editor.export_for_game()
+        
+        print('Integration test map created')
+        "
+        
+        cd ..
+        
+        # Test that C engine can load the map
+        echo "Testing C engine with generated map..."
+        timeout 3s ./bin/nurbs_fps_game test_integration.map || [ $? -eq 124 ]
+        
+        echo "Integration test completed successfully"

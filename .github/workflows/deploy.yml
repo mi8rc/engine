@@ -1,0 +1,274 @@
+name: Deploy and Publish
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'map_editor/**'
+      - 'Dockerfile'
+      - '.github/workflows/deploy.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/nurbs-fps-engine
+
+jobs:
+  docker-build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  create-release-packages:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    needs: docker-build-and-push
+
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x86_64
+          - os: ubuntu-latest  
+            platform: linux
+            arch: arm64
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      if: matrix.arch == 'arm64'
+      uses: docker/setup-qemu-action@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libglfw3-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libjson-c-dev \
+          python3 \
+          python3-pip
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install Python dependencies
+      run: |
+        cd map_editor
+        pip install -r requirements.txt
+
+    - name: Build release
+      run: |
+        make clean
+        make release
+
+    - name: Create package
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        PACKAGE_NAME="nurbs-fps-engine-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
+        
+        mkdir -p ${PACKAGE_NAME}
+        cp -r bin/ ${PACKAGE_NAME}/
+        cp -r sample_maps/ ${PACKAGE_NAME}/
+        cp -r map_editor/ ${PACKAGE_NAME}/
+        cp README.md ${PACKAGE_NAME}/
+        cp run_editor.py ${PACKAGE_NAME}/
+        
+        # Create installation script
+        cat > ${PACKAGE_NAME}/install.sh << 'EOF'
+        #!/bin/bash
+        echo "Installing NURBS FPS Engine..."
+        
+        # Install system dependencies
+        if command -v apt-get &> /dev/null; then
+            echo "Installing dependencies via apt..."
+            sudo apt-get update
+            sudo apt-get install -y libglfw3 libgl1-mesa-glx libglu1-mesa libjson-c5 python3 python3-pip python3-tk
+        elif command -v dnf &> /dev/null; then
+            echo "Installing dependencies via dnf..."
+            sudo dnf install -y glfw mesa-libGL mesa-libGLU json-c python3 python3-pip python3-tkinter
+        elif command -v pacman &> /dev/null; then
+            echo "Installing dependencies via pacman..."
+            sudo pacman -S glfw-x11 mesa glu json-c python python-pip tk
+        else
+            echo "Please install dependencies manually:"
+            echo "  - GLFW3"
+            echo "  - OpenGL/Mesa"
+            echo "  - GLU"
+            echo "  - json-c"
+            echo "  - Python 3 with tkinter"
+        fi
+        
+        # Install Python dependencies
+        cd map_editor
+        pip3 install -r requirements.txt
+        cd ..
+        
+        echo "Installation complete!"
+        echo "Run './bin/nurbs_fps_game' to start the game"
+        echo "Run 'python3 run_editor.py' to start the map editor"
+        EOF
+        
+        chmod +x ${PACKAGE_NAME}/install.sh
+        
+        # Create archive
+        tar -czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
+
+    - name: Upload package to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./nurbs-fps-engine-*-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+        asset_name: nurbs-fps-engine-${{ github.ref_name }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+        asset_content_type: application/gzip
+
+  deploy-documentation:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install documentation dependencies
+      run: |
+        pip install sphinx sphinx-rtd-theme myst-parser
+
+    - name: Generate documentation
+      run: |
+        mkdir -p docs/source
+        
+        # Create Sphinx configuration
+        cat > docs/source/conf.py << 'EOF'
+        import os
+        import sys
+        
+        project = 'NURBS FPS Engine'
+        author = 'NURBS FPS Engine Team'
+        release = '1.0'
+        
+        extensions = [
+            'myst_parser',
+            'sphinx.ext.autodoc',
+            'sphinx.ext.viewcode',
+        ]
+        
+        templates_path = ['_templates']
+        exclude_patterns = []
+        
+        html_theme = 'sphinx_rtd_theme'
+        html_static_path = ['_static']
+        
+        source_suffix = {
+            '.rst': None,
+            '.md': 'myst_parser',
+        }
+        EOF
+        
+        # Copy README as main documentation
+        cp README.md docs/source/index.md
+        
+        # Create additional documentation pages
+        cat > docs/source/api.md << 'EOF'
+        # API Reference
+        
+        ## C API
+        
+        ### NURBS Core (`nurbs.h`)
+        - `nurbs_basis_function()` - Evaluate B-spline basis functions
+        - `evaluate_nurbs_surface()` - Evaluate NURBS surface at parameter
+        - `tessellate_nurbs_surface()` - Convert NURBS to triangles
+        
+        ### FPS Engine (`fps_engine.h`)
+        - `fps_engine_init()` - Initialize game engine
+        - `fps_engine_run()` - Main game loop
+        - `camera_process_keyboard()` - Handle movement input
+        
+        ### Map Loader (`map_loader.h`)
+        - `load_map_file()` - Load JSON map files
+        - `create_game_objects_from_map()` - Create game objects
+        
+        ## Python API
+        
+        ### Map Editor (`nurbs_editor.py`)
+        - `NURBSMapEditor` - Main editor class
+        - `NURBSObject` - Game object representation
+        - `Light` - Light source representation
+        EOF
+        
+        # Build documentation
+        cd docs
+        sphinx-build -b html source build
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/build
+
+  notify-success:
+    if: github.event_name == 'release'
+    needs: [docker-build-and-push, create-release-packages, deploy-documentation]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Send notification
+      run: |
+        echo "🎉 NURBS FPS Engine release ${{ github.ref_name }} deployed successfully!"
+        echo "✅ Docker images published to GHCR"
+        echo "✅ Release packages created"
+        echo "✅ Documentation updated"
