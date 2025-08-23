@@ -1,5 +1,12 @@
 #include "fps_engine.h"
 #include <string.h>
+#include <math.h>
+#include <stdio.h>
+
+// Define M_PI if not available (MSYS2/Windows compatibility)
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // Matrix operations (4x4 matrices in column-major order)
 void matrix_identity(float *matrix) {
@@ -7,16 +14,16 @@ void matrix_identity(float *matrix) {
     matrix[0] = matrix[5] = matrix[10] = matrix[15] = 1.0f;
 }
 
-void matrix_perspective(float *matrix, float fov, float aspect, float near, float far) {
+void matrix_perspective(float *matrix, float fov, float aspect, float near_plane, float far_plane) {
     memset(matrix, 0, 16 * sizeof(float));
     
     float tan_half_fov = tanf(fov * M_PI / 360.0f);
     
     matrix[0] = 1.0f / (aspect * tan_half_fov);
     matrix[5] = 1.0f / tan_half_fov;
-    matrix[10] = -(far + near) / (far - near);
+    matrix[10] = -(far_plane + near_plane) / (far_plane - near_plane);
     matrix[11] = -1.0f;
-    matrix[14] = -(2.0f * far * near) / (far - near);
+    matrix[14] = -(2.0f * far_plane * near_plane) / (far_plane - near_plane);
 }
 
 void matrix_look_at(float *matrix, Vector3 eye, Vector3 center, Vector3 up) {

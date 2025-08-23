@@ -33,6 +33,10 @@ typedef long GLsizeiptr;
 typedef long GLintptr;
 #endif
 #endif
+
+#ifndef GLchar
+typedef char GLchar;
+#endif
 #endif
 
 // Function pointer types
@@ -46,6 +50,25 @@ typedef void (APIENTRY *PFNGLDELETEBUFFERSPROC)(GLsizei n, const GLuint *buffers
 typedef void (APIENTRY *PFNGLVERTEXATTRIBPOINTERPROC)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
 typedef void (APIENTRY *PFNGLENABLEVERTEXATTRIBARRAYPROC)(GLuint index);
 
+// OpenGL 2.0+ shader functions
+typedef GLuint (APIENTRY *PFNGLCREATESHADERPROC)(GLenum type);
+typedef void (APIENTRY *PFNGLSHADERSOURCEPROC)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
+typedef void (APIENTRY *PFNGLCOMPILESHADERPROC)(GLuint shader);
+typedef void (APIENTRY *PFNGLGETSHADERIVPROC)(GLuint shader, GLenum pname, GLint* params);
+typedef void (APIENTRY *PFNGLGETSHADERINFOLOGPROC)(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+typedef GLuint (APIENTRY *PFNGLCREATEPROGRAMPROC)(void);
+typedef void (APIENTRY *PFNGLATTACHSHADERPROC)(GLuint program, GLuint shader);
+typedef void (APIENTRY *PFNGLLINKPROGRAMPROC)(GLuint program);
+typedef void (APIENTRY *PFNGLGETPROGRAMIVPROC)(GLuint program, GLenum pname, GLint* params);
+typedef void (APIENTRY *PFNGLGETPROGRAMINFOLOGPROC)(GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+typedef void (APIENTRY *PFNGLDELETESHADERPROC)(GLuint shader);
+typedef GLint (APIENTRY *PFNGLGETUNIFORMLOCATIONPROC)(GLuint program, const GLchar* name);
+typedef void (APIENTRY *PFNGLUSEPROGRAMPROC)(GLuint program);
+typedef void (APIENTRY *PFNGLUNIFORMMATRIX4FVPROC)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value);
+typedef void (APIENTRY *PFNGLUNIFORM3FPROC)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void (APIENTRY *PFNGLUNIFORM1FPROC)(GLint location, GLfloat v0);
+typedef void (APIENTRY *PFNGLUNIFORM1IPROC)(GLint location, GLint v0);
+
 // Function pointer declarations
 extern PFNGLGENVERTEXARRAYSPROC glGenVertexArrays;
 extern PFNGLBINDVERTEXARRAYPROC glBindVertexArray;
@@ -57,6 +80,25 @@ extern PFNGLDELETEBUFFERSPROC glDeleteBuffers;
 extern PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer;
 extern PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray;
 
+// OpenGL 2.0+ shader function pointers
+extern PFNGLCREATESHADERPROC glCreateShader;
+extern PFNGLSHADERSOURCEPROC glShaderSource;
+extern PFNGLCOMPILESHADERPROC glCompileShader;
+extern PFNGLGETSHADERIVPROC glGetShaderiv;
+extern PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog;
+extern PFNGLCREATEPROGRAMPROC glCreateProgram;
+extern PFNGLATTACHSHADERPROC glAttachShader;
+extern PFNGLLINKPROGRAMPROC glLinkProgram;
+extern PFNGLGETPROGRAMIVPROC glGetProgramiv;
+extern PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog;
+extern PFNGLDELETESHADERPROC glDeleteShader;
+extern PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation;
+extern PFNGLUSEPROGRAMPROC glUseProgram;
+extern PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
+extern PFNGLUNIFORM3FPROC glUniform3f;
+extern PFNGLUNIFORM1FPROC glUniform1f;
+extern PFNGLUNIFORM1IPROC glUniform1i;
+
 // GL constants
 #ifndef GL_ARRAY_BUFFER
 #define GL_ARRAY_BUFFER 0x8892
@@ -66,6 +108,20 @@ extern PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray;
 #endif
 #ifndef GL_STATIC_DRAW
 #define GL_STATIC_DRAW 0x88E4
+#endif
+
+// OpenGL 2.0+ shader constants
+#ifndef GL_VERTEX_SHADER
+#define GL_VERTEX_SHADER 0x8B31
+#endif
+#ifndef GL_FRAGMENT_SHADER
+#define GL_FRAGMENT_SHADER 0x8B30
+#endif
+#ifndef GL_COMPILE_STATUS
+#define GL_COMPILE_STATUS 0x8B81
+#endif
+#ifndef GL_LINK_STATUS
+#define GL_LINK_STATUS 0x8B82
 #endif
 #endif
 
@@ -203,7 +259,7 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 
 // Matrix operations
 void matrix_identity(float *matrix);
-void matrix_perspective(float *matrix, float fov, float aspect, float near, float far);
+void matrix_perspective(float *matrix, float fov, float aspect, float near_plane, float far_plane);
 void matrix_look_at(float *matrix, Vector3 eye, Vector3 center, Vector3 up);
 void matrix_translate(float *matrix, Vector3 translation);
 void matrix_rotate(float *matrix, float angle, Vector3 axis);
