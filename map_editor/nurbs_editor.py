@@ -98,6 +98,15 @@ class NURBSMapEditor:
         self.lights: List[Light] = []
         self.selected_object: Optional[NURBSObject] = None
         self.selected_light: Optional[Light] = None
+        
+        # Initialize NURBS renderer
+        try:
+            from nurbs_renderer import NURBSRenderer
+            self.nurbs_renderer = NURBSRenderer()
+        except ImportError:
+            self.nurbs_renderer = None
+            print("Warning: NURBS renderer not available")
+        
         self.current_tool = "select"
         self.camera_pos = Vector3(0, 5, 10)
         self.camera_rotation = Vector3(0, 0, 0)
@@ -127,6 +136,8 @@ class NURBSMapEditor:
         file_menu.add_command(label="Open...", command=self.open_scene)
         file_menu.add_command(label="Save", command=self.save_scene)
         file_menu.add_command(label="Save As...", command=self.save_scene_as)
+        file_menu.add_separator()
+        file_menu.add_command(label="Import IGS...", command=self.import_igs)
         file_menu.add_separator()
         file_menu.add_command(label="Export for Game...", command=self.export_for_game)
         file_menu.add_separator()
@@ -791,6 +802,121 @@ class NURBSMapEditor:
                 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to export scene: {str(e)}")
+    
+    def import_igs(self):
+        """Import IGS file and convert to NURBS objects"""
+        try:
+            from igs_import_dialog import IGSImportDialog
+            dialog = IGSImportDialog(self.root, self.on_igs_import)
+            dialog.show()
+        except ImportError as e:
+            messagebox.showerror("Error", f"Failed to import IGS module: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open IGS import dialog: {str(e)}")
+    
+    def on_igs_import(self, imported_data: Dict):
+        """Callback for when IGS objects are imported"""
+        try:
+            imported_count = 0
+            
+            for obj_data in imported_data.get('objects', []):
+                if obj_data['type'] == 'nurbs_curve':
+                    # Create NURBS curve object
+                    obj = NURBSObject(
+                        name=obj_data['name'],
+                        object_type=ObjectType.CUSTOM,
+                        position=Vector3(*obj_data['position']),
+                        rotation=Vector3(*obj_data['rotation']),
+                        scale=Vector3(*obj_data['scale'])
+                    )
+                    obj.parameters = {
+                        'nurbs_type': 'curve',
+                        'degree': obj_data['degree'],
+                        'control_points': obj_data['control_points'],
+                        'knots': obj_data['knots']
+                    }
+                    self.objects.append(obj)
+                    imported_count += 1
+                    
+                elif obj_data['type'] == 'nurbs_surface':
+                    # Create NURBS surface object
+                    obj = NURBSObject(
+                        name=obj_data['name'],
+                        object_type=ObjectType.CUSTOM,
+                        position=Vector3(*obj_data['position']),
+                        rotation=Vector3(*obj_data['rotation']),
+                        scale=Vector3(*obj_data['scale'])
+                    )
+                    obj.parameters = {
+                        'nurbs_type': 'surface',
+                        'degree_u': obj_data['degree_u'],
+                        'degree_v': obj_data['degree_v'],
+                        'control_points': obj_data['control_points'],
+                        'knots_u': obj_data['knots_u'],
+                        'knots_v': obj_data['knots_v']
+                    }
+                    self.objects.append(obj)
+                    imported_count += 1
+            
+            if imported_count > 0:
+                self.update_scene_tree()
+                messagebox.showinfo("Success", f"Successfully imported {imported_count} IGS objects!")
+            else:
+                messagebox.showwarning("Warning", "No valid objects found in IGS file.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to import IGS objects: {str(e)}")
+    
+    def render_igs_objects(self):
+        """Render imported IGS NURBS objects using the NURBS renderer"""
+        if not self.nurbs_renderer or not OPENGL_AVAILABLE:
+            return
+            
+        for obj in self.objects:
+            if obj.object_type == ObjectType.CUSTOM and 'nurbs_type' in obj.parameters:
+                nurbs_type = obj.parameters['nurbs_type']
+                
+                if nurbs_type == 'curve':
+                    # Render NURBS curve
+                    control_points = obj.parameters['control_points']
+                    knots = obj.parameters['knots']
+                    degree = obj.parameters['degree']
+                    
+                    # Apply object transformation
+                    glPushMatrix()
+                    glTranslatef(obj.position.x, obj.position.y, obj.position.z)
+                    glRotatef(obj.rotation.x, 1, 0, 0)
+                    glRotatef(obj.rotation.y, 0, 1, 0)
+                    glRotatef(obj.rotation.z, 0, 0, 1)
+                    glScalef(obj.scale.x, obj.scale.y, obj.scale.z)
+                    
+                    # Render the curve
+                    self.nurbs_renderer.render_nurbs_curve(control_points, knots, degree)
+                    
+                    glPopMatrix()
+                    
+                elif nurbs_type == 'surface':
+                    # Render NURBS surface
+                    control_points = obj.parameters['control_points']
+                    knots_u = obj.parameters['knots_u']
+                    knots_v = obj.parameters['knots_v']
+                    degree_u = obj.parameters['degree_u']
+                    degree_v = obj.parameters['degree_v']
+                    
+                    # Apply object transformation
+                    glPushMatrix()
+                    glTranslatef(obj.position.x, obj.position.y, obj.position.z)
+                    glRotatef(obj.rotation.x, 1, 0, 0)
+                    glRotatef(obj.rotation.y, 0, 1, 0)
+                    glRotatef(obj.rotation.z, 0, 0, 1)
+                    glScalef(obj.scale.x, obj.scale.y, obj.scale.z)
+                    
+                    # Render the surface
+                    self.nurbs_renderer.render_nurbs_surface(
+                        control_points, knots_u, knots_v, degree_u, degree_v
+                    )
+                    
+                    glPopMatrix()
     
     # Placeholder methods for menu items
     def undo(self): pass
