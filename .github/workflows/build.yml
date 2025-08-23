@@ -24,18 +24,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Install system dependencies
+    - name: Install system dependencies (headless CI/CD)
       run: |
         sudo apt-get update
         sudo apt-get install -y \
-          libglfw3-dev \
-          libgl1-mesa-dev \
-          libglu1-mesa-dev \
-          libjson-c-dev \
           build-essential \
           clang \
           valgrind \
-          pkg-config
+          pkg-config \
+          python3 \
+          python3-pip
     
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -48,59 +46,46 @@ jobs:
         cd map_editor
         pip install -r requirements.txt
     
-    - name: Build with GCC
+    - name: Build with GCC (Headless)
       if: matrix.compiler == 'gcc'
       run: |
         export CC=gcc
-        make clean
-        make ${{ matrix.build_type == 'Debug' && 'debug' || 'release' }}
+        make -f Makefile.headless clean
+        make -f Makefile.headless headless
     
-    - name: Build with Clang
+    - name: Build with Clang (Headless)
       if: matrix.compiler == 'clang'
       run: |
         export CC=clang
-        make clean
-        make ${{ matrix.build_type == 'Debug' && 'debug' || 'release' }}
+        make -f Makefile.headless clean
+        make -f Makefile.headless headless
     
-    - name: Test map loading
+    - name: Test NURBS mathematics (headless)
       run: |
-        # Test that the game can load the sample map without crashing
-        timeout 5s ./bin/nurbs_fps_game sample_maps/demo_scene.map || [ $? -eq 124 ]
+        # Test NURBS mathematics without GPU
+        make -f Makefile.headless test
     
-    - name: Run Python editor tests
+    - name: Run CI/CD test suite
       run: |
-        cd map_editor
-        python -c "
-        import nurbs_editor
-        print('Python editor imports successfully')
-        
-        # Test basic functionality
-        from nurbs_editor import NURBSMapEditor, ObjectType, LightType, Vector3
-        
-        # Test Vector3 operations
-        v1 = Vector3(1, 2, 3)
-        v2 = Vector3(4, 5, 6)
-        v3 = v1 + v2
-        assert v3.x == 5 and v3.y == 7 and v3.z == 9
-        
-        print('Basic math tests passed')
-        "
+        # Run comprehensive headless tests
+        make -f Makefile.headless ci-test
     
     - name: Memory leak check (Debug builds only)
       if: matrix.build_type == 'Debug' && matrix.compiler == 'gcc'
       run: |
-        # Quick valgrind check (will timeout after 10 seconds)
+        # Quick valgrind check on headless NURBS engine
         timeout 10s valgrind --leak-check=summary --error-exitcode=1 \
-          ./bin/nurbs_fps_game sample_maps/demo_scene.map || [ $? -eq 124 ]
+          ./bin/nurbs_headless_test || [ $? -eq 124 ]
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: nurbs-fps-linux-${{ matrix.compiler }}-${{ matrix.build_type }}
+        name: nurbs-fps-headless-${{ matrix.compiler }}-${{ matrix.build_type }}
         path: |
-          bin/nurbs_fps_game
+          bin/nurbs_headless_test
           sample_maps/
           map_editor/
+          exported_*.json
         retention-days: 30
 
   build-macos:

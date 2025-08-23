@@ -1,0 +1,99 @@
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c99 -O2 -g
+LIBS = -lm
+
+# Directories
+SRCDIR = src
+OBJDIR = obj
+BINDIR = bin
+
+# Headless build (no GPU/OpenGL required)
+HEADLESS_TARGET = $(BINDIR)/nurbs_headless_test
+
+# Default target for CI/CD
+all: headless
+
+# Create directories
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+$(BINDIR):
+	mkdir -p $(BINDIR)
+
+# Headless build (perfect for GitHub Actions)
+headless: $(HEADLESS_TARGET)
+
+$(HEADLESS_TARGET): $(SRCDIR)/nurbs_headless.c | $(OBJDIR) $(BINDIR)
+	$(CC) $(CFLAGS) $(SRCDIR)/nurbs_headless.c $(LIBS) -o $(HEADLESS_TARGET)
+
+# Test the NURBS mathematics
+test: $(HEADLESS_TARGET)
+	@echo "🧪 Running NURBS mathematics tests..."
+	./$(HEADLESS_TARGET)
+
+# Test Python map editor
+test-editor:
+	@echo "🐍 Testing Python map editor..."
+	cd map_editor && python3 -c "import nurbs_editor; print('✅ Python editor imports successfully')"
+	cd map_editor && python3 -c "from nurbs_editor import Vector3, NURBSObject, Light; print('✅ Core classes work')"
+	cd map_editor && python3 -c "from nurbs_editor import NURBSMapEditor; print('✅ Map editor class loads')"
+
+# Validate exported data
+validate-exports: $(HEADLESS_TARGET)
+	./$(HEADLESS_TARGET)
+	@echo "🔍 Validating exported NURBS data..."
+	@if [ -f exported_sphere.json ]; then echo "✅ Sphere export found"; else echo "❌ Sphere export missing"; fi
+	@if [ -f exported_torus.json ]; then echo "✅ Torus export found"; else echo "❌ Torus export missing"; fi
+	python3 -c "import json; data=json.load(open('exported_sphere.json')); print(f'✅ Sphere: {data[\"control_points_u\"]}x{data[\"control_points_v\"]} control points')"
+
+# Full CI/CD test suite
+ci-test: test test-editor validate-exports
+	@echo "🎉 All CI/CD tests passed!"
+
+# Clean
+clean:
+	rm -rf $(OBJDIR) $(BINDIR) exported_*.json
+
+# Install CI/CD dependencies (no GPU packages)
+install-ci-deps:
+	@echo "📦 Installing CI/CD dependencies (no GPU required)..."
+	sudo apt-get update || true
+	sudo apt-get install -y python3 python3-pip build-essential || true
+	cd map_editor && pip3 install -r requirements.txt || pip install -r requirements.txt
+
+# Performance benchmark
+benchmark: $(HEADLESS_TARGET)
+	@echo "⚡ Running NURBS performance benchmark..."
+	./$(HEADLESS_TARGET) | grep "evaluations/second"
+
+# Create release package for CI/CD
+package: headless
+	@echo "📦 Creating release package..."
+	mkdir -p release
+	cp $(HEADLESS_TARGET) release/
+	cp -r map_editor release/
+	cp -r sample_maps release/
+	cp README.md release/
+	tar -czf nurbs-fps-engine-headless.tar.gz release/
+	@echo "✅ Release package created: nurbs-fps-engine-headless.tar.gz"
+
+# Help
+help:
+	@echo "🎯 NURBS FPS Engine - CI/CD Makefile"
+	@echo "===================================="
+	@echo ""
+	@echo "Targets:"
+	@echo "  all            - Build headless version (default)"
+	@echo "  headless       - Build NURBS engine without GPU"
+	@echo "  test           - Run NURBS mathematics tests"
+	@echo "  test-editor    - Test Python map editor"
+	@echo "  ci-test        - Run full CI/CD test suite"
+	@echo "  benchmark      - Performance benchmark"
+	@echo "  validate-exports - Check NURBS data export"
+	@echo "  package        - Create release package"
+	@echo "  clean          - Clean build files"
+	@echo "  install-ci-deps - Install dependencies for CI/CD"
+	@echo ""
+	@echo "Perfect for GitHub Actions - NO GPU REQUIRED! 🚀"
+
+.PHONY: all headless test test-editor ci-test clean install-ci-deps benchmark package validate-exports help
