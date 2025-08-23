@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
+// Remove legacy OpenGL headers - GLFW will provide the necessary OpenGL definitions
+// #include <GL/gl.h>
+// #include <GL/glu.h>
 
 #define MAX_CONTROL_POINTS 64
 #define MAX_KNOTS 128
