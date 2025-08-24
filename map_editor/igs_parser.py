@@ -86,16 +86,32 @@ class IGSParser:
                 iges_file = iges.read(filename)
                 self.debug_info.append(f"Using iges library")
                 
-            # Handle different API structures
+            # Handle different API structures for pyiges
+            entities = None
             if hasattr(iges_file, 'entities'):
-                entities = iges_file.entities
+                if callable(iges_file.entities):
+                    # entities is a method, call it
+                    try:
+                        entities = iges_file.entities()
+                        self.debug_info.append("Called entities() method")
+                    except Exception as e:
+                        self.debug_info.append(f"Error calling entities() method: {str(e)}")
+                        entities = None
+                else:
+                    # entities is a property
+                    entities = iges_file.entities
+                    self.debug_info.append("Accessed entities property")
             elif hasattr(iges_file, 'get_entities'):
-                entities = iges_file.get_entities()
-            elif callable(getattr(iges_file, 'entities', None)):
-                entities = iges_file.entities()
+                try:
+                    entities = iges_file.get_entities()
+                    self.debug_info.append("Called get_entities() method")
+                except Exception as e:
+                    self.debug_info.append(f"Error calling get_entities() method: {str(e)}")
+                    entities = None
             else:
                 # Try to access entities as a property
-                entities = iges_file.entities
+                entities = getattr(iges_file, 'entities', None)
+                self.debug_info.append("Tried to access entities as property")
                 
             if entities is None:
                 self.debug_info.append("No entities found in IGS file")
@@ -109,11 +125,15 @@ class IGSParser:
                 # If entities is not a list, try to iterate
                 entity_count = 0
                 temp_entities = []
-                for entity in entities:
-                    temp_entities.append(entity)
-                    entity_count += 1
-                entities = temp_entities
-                self.debug_info.append(f"Total entities: {entity_count}")
+                try:
+                    for entity in entities:
+                        temp_entities.append(entity)
+                        entity_count += 1
+                    entities = temp_entities
+                    self.debug_info.append(f"Converted entities to list, count: {entity_count}")
+                except Exception as e:
+                    self.debug_info.append(f"Error iterating entities: {str(e)}")
+                    return False
             
             for entity in entities:
                 try:
