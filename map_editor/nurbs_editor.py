@@ -55,33 +55,55 @@ class Vector3:
 
 @dataclass
 class Material:
-    ambient: Vector3 = Vector3(0.2, 0.2, 0.2)
-    diffuse: Vector3 = Vector3(0.8, 0.8, 0.8)
-    specular: Vector3 = Vector3(1.0, 1.0, 1.0)
+    ambient: Vector3 = None
+    diffuse: Vector3 = None
+    specular: Vector3 = None
     shininess: float = 32.0
+    
+    def __post_init__(self):
+        if self.ambient is None:
+            self.ambient = Vector3(0.2, 0.2, 0.2)
+        if self.diffuse is None:
+            self.diffuse = Vector3(0.8, 0.8, 0.8)
+        if self.specular is None:
+            self.specular = Vector3(1.0, 1.0, 1.0)
 
 @dataclass
 class Light:
     name: str = "Light"
-    position: Vector3 = Vector3(0.0, 5.0, 0.0)
-    color: Vector3 = Vector3(1.0, 1.0, 1.0)
+    position: Vector3 = None
+    color: Vector3 = None
     intensity: float = 1.0
     light_type: LightType = LightType.POINT
-    direction: Vector3 = Vector3(0.0, -1.0, 0.0)
+    direction: Vector3 = None
     spot_angle: float = 45.0
+    
+    def __post_init__(self):
+        if self.position is None:
+            self.position = Vector3(0.0, 5.0, 0.0)
+        if self.color is None:
+            self.color = Vector3(1.0, 1.0, 1.0)
+        if self.direction is None:
+            self.direction = Vector3(0.0, -1.0, 0.0)
 
 @dataclass
 class NURBSObject:
     name: str = "Object"
     object_type: ObjectType = ObjectType.SPHERE
-    position: Vector3 = Vector3(0.0, 0.0, 0.0)
-    rotation: Vector3 = Vector3(0.0, 0.0, 0.0)
-    scale: Vector3 = Vector3(1.0, 1.0, 1.0)
+    position: Vector3 = None
+    rotation: Vector3 = None
+    scale: Vector3 = None
     material: Material = None
     is_collidable: bool = True
     parameters: Dict = None  # Type-specific parameters
     
     def __post_init__(self):
+        if self.position is None:
+            self.position = Vector3(0.0, 0.0, 0.0)
+        if self.rotation is None:
+            self.rotation = Vector3(0.0, 0.0, 0.0)
+        if self.scale is None:
+            self.scale = Vector3(1.0, 1.0, 1.0)
         if self.material is None:
             self.material = Material()
         if self.parameters is None:
