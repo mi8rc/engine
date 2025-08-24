@@ -1,0 +1,379 @@
+name: CI/CD - Build and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PROJECT_NAME: nurbs_map_editor
+  BUILD_TYPE: Release
+
+jobs:
+  # Linux build job
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - { name: "Ubuntu 20.04", os: "ubuntu-20.04" }
+          - { name: "Ubuntu 22.04", os: "ubuntu-22.04" }
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          pkg-config \
+          libgtk-3-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libglfw3-dev \
+          libglew-dev \
+          cppcheck \
+          valgrind \
+          clang-format
+    
+    - name: Check dependencies
+      working-directory: c_map_editor
+      run: make check-deps
+    
+    - name: Build release
+      working-directory: c_map_editor
+      run: make release
+    
+    - name: Run static analysis
+      working-directory: c_map_editor
+      run: make analyze
+    
+    - name: Build debug version
+      working-directory: c_map_editor
+      run: make debug
+    
+    - name: Run tests
+      working-directory: c_map_editor
+      run: make test
+    
+    - name: Create package
+      working-directory: c_map_editor
+      run: make package
+    
+    - name: Create Debian package
+      working-directory: c_map_editor
+      run: make deb
+    
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-${{ matrix.config.os }}-build
+        path: |
+          c_map_editor/build/bin/
+          c_map_editor/build/dist/
+        retention-days: 30
+    
+    - name: Upload release assets (on tag)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-release-${{ matrix.config.os }}
+        path: c_map_editor/build/dist/
+        retention-days: 90
+
+  # Windows MSYS2 build job
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+    
+    defaults:
+      run:
+        shell: msys2 {0}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-glfw
+          mingw-w64-x86_64-json-c
+          mingw-w64-x86_64-pkg-config
+          make
+          git
+          base-devel
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-pkg-config
+          mingw-w64-x86_64-gtk3
+          mingw-w64-x86_64-freeglut
+          mingw-w64-x86_64-mesa
+          mingw-w64-x86_64-gtkglext
+          mingw-w64-x86_64-glfw
+          mingw-w64-x86_64-glew
+          mingw-w64-x86_64-cppcheck
+    
+    - name: Check dependencies
+      working-directory: c_map_editor
+      run: make check-deps
+    
+    - name: Build release
+      working-directory: c_map_editor
+      run: make release CC=gcc
+    
+    - name: Run static analysis
+      working-directory: c_map_editor
+      run: make analyze || true  # Don't fail on warnings
+    
+    - name: Build debug version
+      working-directory: c_map_editor
+      run: make debug CC=gcc
+    
+    - name: Create Windows package
+      working-directory: c_map_editor
+      run: |
+        mkdir -p build/dist/windows-${{ matrix.env }}
+        cp build/bin/${PROJECT_NAME}* build/dist/windows-${{ matrix.env }}/
+        cp README.md LICENSE CHANGELOG.md build/dist/windows-${{ matrix.env }}/
+        
+        # Copy required DLLs
+        ldd build/bin/${PROJECT_NAME}.exe | grep mingw | awk '{print $3}' | xargs -I {} cp {} build/dist/windows-${{ matrix.env }}/ || true
+        
+        cd build/dist
+        zip -r ${PROJECT_NAME}-windows-${{ matrix.env }}.zip windows-${{ matrix.env }}/
+    
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-${{ matrix.env }}-build
+        path: |
+          c_map_editor/build/bin/
+          c_map_editor/build/dist/
+        retention-days: 30
+    
+    - name: Upload release assets (on tag)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-release-${{ matrix.env }}
+        path: c_map_editor/build/dist/*.zip
+        retention-days: 90
+
+  # Code quality and security checks
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          pkg-config \
+          libgtk-3-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libglfw3-dev \
+          libglew-dev \
+          cppcheck \
+          clang-format \
+          clang-tidy
+    
+    - name: Check code formatting
+      working-directory: c_map_editor
+      run: |
+        find . -name "*.c" -o -name "*.h" | xargs clang-format --dry-run --Werror
+    
+    - name: Run static analysis
+      working-directory: c_map_editor
+      run: make analyze
+    
+    - name: Run security scan with CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: cpp
+    
+    - name: Build for CodeQL
+      working-directory: c_map_editor
+      run: make release
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  # Create GitHub release
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-windows, code-quality]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+    
+    - name: Prepare release assets
+      run: |
+        mkdir -p release-assets/
+        
+        # Linux packages
+        find artifacts/ -name "*.tar.gz" -exec cp {} release-assets/ \;
+        find artifacts/ -name "*.deb" -exec cp {} release-assets/ \;
+        
+        # Windows packages
+        find artifacts/ -name "*.zip" -exec cp {} release-assets/ \;
+        
+        # List all release assets
+        ls -la release-assets/
+    
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: NURBS Map Editor v${{ steps.version.outputs.VERSION }}
+        body: |
+          ## NURBS Map Editor v${{ steps.version.outputs.VERSION }}
+          
+          A comprehensive Roblox Studio-like editor for NURBS-based FPS games with full IGES support.
+          
+          ### 🚀 New Features
+          - Full IGES file format support
+          - Roblox Studio-like interface
+          - NURBS primitive creation tools
+          - Advanced material and lighting system
+          - Comprehensive undo/redo system
+          
+          ### 📦 Downloads
+          
+          **Linux:**
+          - Ubuntu 20.04/22.04 Debian packages (.deb)
+          - Source packages (.tar.gz)
+          
+          **Windows:**
+          - 64-bit (x86_64) and 32-bit (i686) builds
+          - Includes all required DLLs
+          
+          ### 📋 Requirements
+          
+          **Linux:**
+          - GTK+ 3.0
+          - OpenGL/Mesa
+          - GLFW3
+          
+          **Windows:**
+          - Windows 7 or later
+          - All dependencies included
+          
+          ### 🔧 Installation
+          
+          **Linux (Debian/Ubuntu):**
+          ```bash
+          sudo dpkg -i nurbs_map_editor_*_amd64.deb
+          sudo apt-get install -f  # Fix dependencies if needed
+          ```
+          
+          **Linux (from source):**
+          ```bash
+          tar -xzf nurbs_map_editor-*.tar.gz
+          cd nurbs_map_editor-*
+          make install-deps-ubuntu
+          make release
+          sudo make install
+          ```
+          
+          **Windows:**
+          1. Download the appropriate .zip file for your architecture
+          2. Extract to a folder of your choice
+          3. Run nurbs_map_editor.exe
+          
+          For detailed documentation, see the [README](https://github.com/${{ github.repository }}/blob/main/c_map_editor/README.md).
+        draft: false
+        prerelease: false
+    
+    - name: Upload Linux tar.gz
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release-assets/nurbs_map_editor-${{ steps.version.outputs.VERSION }}.tar.gz
+        asset_name: nurbs_map_editor-${{ steps.version.outputs.VERSION }}-linux.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload Linux deb (Ubuntu 22.04)
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release-assets/nurbs_map_editor_${{ steps.version.outputs.VERSION }}_amd64.deb
+        asset_name: nurbs_map_editor_${{ steps.version.outputs.VERSION }}_amd64.deb
+        asset_content_type: application/vnd.debian.binary-package
+    
+    - name: Upload Windows x86_64
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release-assets/nurbs_map_editor-windows-x86_64.zip
+        asset_name: nurbs_map_editor-${{ steps.version.outputs.VERSION }}-windows-x64.zip
+        asset_content_type: application/zip
+    
+    - name: Upload Windows i686
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release-assets/nurbs_map_editor-windows-i686.zip
+        asset_name: nurbs_map_editor-${{ steps.version.outputs.VERSION }}-windows-x86.zip
+        asset_content_type: application/zip
+
+  # Notify on success/failure
+  notify:
+    if: always()
+    needs: [build-linux, build-windows, code-quality]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Notify success
+      if: success()
+      run: |
+        echo "✅ All builds completed successfully!"
+        echo "Linux and Windows builds are ready for deployment."
+    
+    - name: Notify failure
+      if: failure()
+      run: |
+        echo "❌ Build failed!"
+        echo "Please check the logs for details."
+        exit 1
