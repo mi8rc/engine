@@ -12,7 +12,7 @@ PyOpenGL-accelerate>=3.1.5
 numpy>=1.21.0
 
 # IGS/IGES file support
-python-iges>=0.1.0
+pyiges>=0.1.0
 
 # JSON handling (built-in with Python)
 # json

@@ -9,13 +9,17 @@ from typing import List, Dict, Tuple, Optional, Union
 from dataclasses import dataclass
 import math
 
-# Try to import python-iges, fall back to basic parser if not available
+# Try to import pyiges, fall back to basic parser if not available
 try:
-    import iges
+    import pyiges
     IGS_AVAILABLE = True
 except ImportError:
-    print("Warning: python-iges not available. Using basic IGS parser.")
-    IGS_AVAILABLE = False
+    try:
+        import iges
+        IGS_AVAILABLE = True
+    except ImportError:
+        print("Warning: pyiges not available. Using basic IGS parser.")
+        IGS_AVAILABLE = False
 
 @dataclass
 class IGSControlPoint:
@@ -72,10 +76,16 @@ class IGSParser:
             return False
     
     def _parse_with_library(self, filename: str) -> bool:
-        """Parse using python-iges library"""
+        """Parse using pyiges library"""
         try:
-            iges_file = iges.read(filename)
-            self.debug_info.append(f"Using python-iges library")
+            # Try pyiges first, then fallback to iges
+            if 'pyiges' in globals():
+                iges_file = pyiges.read(filename)
+                self.debug_info.append(f"Using pyiges library")
+            else:
+                iges_file = iges.read(filename)
+                self.debug_info.append(f"Using iges library")
+                
             self.debug_info.append(f"Total entities: {len(iges_file.entities)}")
             
             for entity in iges_file.entities:
@@ -136,8 +146,8 @@ class IGSParser:
             return True
             
         except Exception as e:
-            print(f"Error with python-iges: {e}")
-            self.debug_info.append(f"python-iges error: {str(e)}")
+            print(f"Error with IGS library: {e}")
+            self.debug_info.append(f"IGS library error: {str(e)}")
             return False
     
     def _parse_basic(self, filename: str) -> bool:
