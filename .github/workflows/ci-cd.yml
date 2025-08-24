@@ -118,6 +118,7 @@ jobs:
           mingw-w64-${{ matrix.env }}-pkg-config
           mingw-w64-${{ matrix.env }}-gtk3
           mingw-w64-${{ matrix.env }}-mesa
+          mingw-w64-${{ matrix.env }}-gtkglext
           mingw-w64-${{ matrix.env }}-glfw
           mingw-w64-${{ matrix.env }}-glew
           mingw-w64-${{ matrix.env }}-cppcheck
