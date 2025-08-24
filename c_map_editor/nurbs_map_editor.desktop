@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NURBS Map Editor
+Comment=Roblox Studio-like editor for NURBS-based FPS games with full IGES support
+GenericName=3D Map Editor
+Icon=nurbs_map_editor
+Exec=nurbs_map_editor
+Terminal=false
+Categories=Graphics;3DGraphics;Engineering;
+Keywords=3D;CAD;NURBS;IGES;Game;Editor;Modeling;
+MimeType=application/x-iges;application/x-nurbs-map;
+StartupNotify=true
+StartupWMClass=nurbs_map_editor
