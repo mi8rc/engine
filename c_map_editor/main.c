@@ -39,10 +39,11 @@ MapEditor *g_editor = NULL;
 #define APP_DESCRIPTION "A Roblox Studio-like editor for NURBS-based FPS games"
 
 static void on_activate(GtkApplication *app, gpointer user_data) {
+    (void)user_data; // Suppress unused parameter warning
+    
     printf("Starting %s v%s\n", APP_NAME, APP_VERSION);
     printf("%s\n", APP_DESCRIPTION);
-    printf("=" * 60);
-    printf("\n");
+    printf("============================================================\n");
 
     // Initialize the map editor
     g_editor = editor_create(app);
@@ -56,6 +57,9 @@ static void on_activate(GtkApplication *app, gpointer user_data) {
 }
 
 static void on_shutdown(GtkApplication *app, gpointer user_data) {
+    (void)app;      // Suppress unused parameter warning
+    (void)user_data; // Suppress unused parameter warning
+    
     printf("Shutting down %s...\n", APP_NAME);
     
     if (g_editor) {
