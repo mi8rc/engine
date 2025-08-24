@@ -19,7 +19,12 @@
 #include <gtk/gtk.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
+#ifdef HAVE_GTKGLEXT
 #include <gtk/gtkgl.h>
+#else
+/* Fallback for systems without gtkglext */
+#define GTK_GL_WIDGET(widget) (widget)
+#endif
 
 #include "editor.h"
 #include "iges_loader.h"
