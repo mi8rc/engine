@@ -1,7 +1,24 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -O2 -g
 INCLUDES = -Isrc/
-LIBS = -lglfw -lGL -lGLU -lm -ljson-c
+
+# Detect platform and set appropriate libraries
+ifeq ($(OS),Windows_NT)
+    # Windows/MSYS2 libraries
+    LIBS = -lglfw3 -lopengl32 -lglu32 -lm -ljson-c
+    # Add Windows-specific libraries
+    LIBS += -lgdi32 -luser32 -lkernel32
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Linux)
+        # Linux libraries
+        LIBS = -lglfw -lGL -lGLU -lm -ljson-c
+    endif
+    ifeq ($(UNAME_S),Darwin)
+        # macOS libraries
+        LIBS = -lglfw -framework OpenGL -lm -ljson-c
+    endif
+endif
 
 # Directories
 SRCDIR = src

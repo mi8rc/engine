@@ -1,5 +1,12 @@
 #include "nurbs.h"
 #include <string.h>
+#include <math.h>
+#include <stdio.h>
+
+// Define M_PI if not available (MSYS2/Windows compatibility)
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // Calculate B-spline basis function using Cox-de Boor recursion
 float nurbs_basis_function(int i, int degree, float t, float *knots) {
@@ -310,8 +317,6 @@ NURBSSurface* create_nurbs_sphere(float radius) {
     surface->num_control_points_v = 5;
     
     // Simplified sphere control points (quarter sphere)
-    float w = 1.0f / sqrtf(2.0f); // Weight for circular arcs
-    
     // Create control points for a sphere using rational Bézier patches
     for (int i = 0; i < surface->num_control_points_u; i++) {
         for (int j = 0; j < surface->num_control_points_v; j++) {

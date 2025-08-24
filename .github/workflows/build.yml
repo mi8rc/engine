@@ -140,9 +140,101 @@ jobs:
         make clean
         make release
     
-   
+    - name: Bundle DLLs for portable distribution
+      shell: msys2 {0}
+      run: |
+
+          # Create portable distribution directory
+          mkdir -p portable-dist
+
+          # Copy the executable
+          cp bin/nurbs_fps_game.exe portable-dist/
+
+          # Copy sample maps and editor
+          cp -r sample_maps portable-dist/
+          cp -r map_editor portable-dist/
+          cp README.md portable-dist/
+
+          # Track copied DLLs in a file instead of associative array
+          copied_list="copied_dlls.txt"
+          > "$copied_list"
+
+          copy_dll() {
+            local dll_path="$1"
+            local target_dir="$2"
+            local dll_name=$(basename "$dll_path")
+            if [ -f "$dll_path" ] && ! grep -qx "$dll_name" "$copied_list"; then
+              cp "$dll_path" "$target_dir/"
+              echo "$dll_name" >> "$copied_list"
+              echo "Copied: $dll_name"
+            fi
+          }
+
+          echo "Analyzing DLL dependencies..."
+          # First pass: direct dependencies
+          ldd bin/nurbs_fps_game.exe | grep -E "(mingw64|msys64)" | awk '{print $3}' | while read dll; do
+            [ -f "$dll" ] && copy_dll "$dll" "portable-dist"
+          done
+
+          # Second pass: dependencies of dependencies
+          for dll in portable-dist/*.dll; do
+            [ -f "$dll" ] || continue
+            ldd "$dll" 2>/dev/null | grep -E "(mingw64|msys64)" | awk '{print $3}' | while read dep; do
+              [ -f "$dep" ] && copy_dll "$dep" "portable-dist"
+            done
+          done
+
+          # Copy common MSYS2 runtime DLLs
+          MINGW_PREFIX="/mingw64"
+          for dll in libgcc_s_seh-1.dll libwinpthread-1.dll libstdc++-6.dll libglfw3.dll libjson-c-5.dll; do
+            if [ -f "$MINGW_PREFIX/bin/$dll" ]; then
+              cp "$MINGW_PREFIX/bin/$dll" portable-dist/
+              echo "Copied common DLL: $dll"
+            fi
+          done
+
+          # Create launcher script
+          cat > portable-dist/run_game.bat << 'EOF'
+          @echo off
+          echo ============================================
+          echo NURBS FPS Game - Portable
+          echo ============================================
+          echo.
+          echo Loading sample scene...
+          nurbs_fps_game.exe sample_maps/demo_scene.map
+          if errorlevel 1 (
+            echo Error loading scene, starting without map...
+            nurbs_fps_game.exe
+          )
+          pause
+          EOF
+
+          # Create portable README
+          cat > portable-dist/PORTABLE_README.txt << 'EOF'
+          NURBS FPS Game - Portable Windows Distribution
+          =============================================
+          Includes:
+          - nurbs_fps_game.exe
+          - *.dll files
+          - sample_maps/
+          - map_editor/
+          - run_game.bat
+          - README.md
+          EOF
+
+          echo "Portable distribution contents:"
+          find portable-dist -type f | sort
+      continue-on-error: true
+
     
-    - name: Upload build artifacts
+    - name: Upload portable distribution
+      uses: actions/upload-artifact@v4
+      with:
+        name: nurbs-fps-windows-portable
+        path: portable-dist/
+        retention-days: 30
+    
+    - name: Upload build artifacts (legacy)
       uses: actions/upload-artifact@v4
       with:
         name: nurbs-fps-windows
@@ -282,8 +374,14 @@ jobs:
         tar -czf nurbs-fps-linux.tar.gz nurbs-fps-linux-*
         tar -czf nurbs-fps-macos.tar.gz nurbs-fps-macos
         zip -r nurbs-fps-windows.zip nurbs-fps-windows
+        
+        # Create portable Windows distribution archive
+        if [ -d "nurbs-fps-windows-portable" ]; then
+          zip -r nurbs-fps-windows-portable.zip nurbs-fps-windows-portable
+          echo "Created portable Windows distribution"
+        fi
     
-    - name: Upload release assets
+    - name: Upload Linux release asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -292,6 +390,37 @@ jobs:
         asset_path: ./nurbs-fps-linux.tar.gz
         asset_name: nurbs-fps-linux.tar.gz
         asset_content_type: application/gzip
+    
+    - name: Upload macOS release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./nurbs-fps-macos.tar.gz
+        asset_name: nurbs-fps-macos.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload Windows release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./nurbs-fps-windows.zip
+        asset_name: nurbs-fps-windows.zip
+        asset_content_type: application/zip
+    
+    - name: Upload Windows portable release asset
+      if: hashFiles('nurbs-fps-windows-portable.zip') != ''
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./nurbs-fps-windows-portable.zip
+        asset_name: nurbs-fps-windows-portable.zip
+        asset_content_type: application/zip
 
   container-build:
     runs-on: ubuntu-latest

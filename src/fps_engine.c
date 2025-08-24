@@ -1,6 +1,44 @@
 #include "fps_engine.h"
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
+
+// Define M_PI if not available (MSYS2/Windows compatibility)
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+// OpenGL function pointers for compatibility
+#ifndef GL_VERSION_3_0
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = NULL;
+PFNGLGENBUFFERSPROC glGenBuffers = NULL;
+PFNGLBINDBUFFERPROC glBindBuffer = NULL;
+PFNGLBUFFERDATAPROC glBufferData = NULL;
+PFNGLDELETEBUFFERSPROC glDeleteBuffers = NULL;
+PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer = NULL;
+PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = NULL;
+
+// OpenGL 2.0+ shader function pointers
+PFNGLCREATESHADERPROC glCreateShader = NULL;
+PFNGLSHADERSOURCEPROC glShaderSource = NULL;
+PFNGLCOMPILESHADERPROC glCompileShader = NULL;
+PFNGLGETSHADERIVPROC glGetShaderiv = NULL;
+PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = NULL;
+PFNGLCREATEPROGRAMPROC glCreateProgram = NULL;
+PFNGLATTACHSHADERPROC glAttachShader = NULL;
+PFNGLLINKPROGRAMPROC glLinkProgram = NULL;
+PFNGLGETPROGRAMIVPROC glGetProgramiv = NULL;
+PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = NULL;
+PFNGLDELETESHADERPROC glDeleteShader = NULL;
+PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
+PFNGLUSEPROGRAMPROC glUseProgram = NULL;
+PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
+PFNGLUNIFORM3FPROC glUniform3f = NULL;
+PFNGLUNIFORM1FPROC glUniform1f = NULL;
+PFNGLUNIFORM1IPROC glUniform1i = NULL;
+#endif
 
 // Global engine pointer for callbacks
 static FPSEngine *g_engine = NULL;
@@ -78,6 +116,54 @@ const char *fragment_shader_source =
 "    FragColor = vec4(result, 1.0);\n"
 "}\n";
 
+// Load OpenGL extensions for compatibility
+int load_opengl_extensions(void) {
+#ifndef GL_VERSION_3_0
+    // Load OpenGL 3.0+ functions using GLFW
+    glGenVertexArrays = (PFNGLGENVERTEXARRAYSPROC)glfwGetProcAddress("glGenVertexArrays");
+    glBindVertexArray = (PFNGLBINDVERTEXARRAYPROC)glfwGetProcAddress("glBindVertexArray");
+    glDeleteVertexArrays = (PFNGLDELETEVERTEXARRAYSPROC)glfwGetProcAddress("glDeleteVertexArrays");
+    glGenBuffers = (PFNGLGENBUFFERSPROC)glfwGetProcAddress("glGenBuffers");
+    glBindBuffer = (PFNGLBINDBUFFERPROC)glfwGetProcAddress("glBindBuffer");
+    glBufferData = (PFNGLBUFFERDATAPROC)glfwGetProcAddress("glBufferData");
+    glDeleteBuffers = (PFNGLDELETEBUFFERSPROC)glfwGetProcAddress("glDeleteBuffers");
+    glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)glfwGetProcAddress("glVertexAttribPointer");
+    glEnableVertexAttribArray = (PFNGLENABLEVERTEXATTRIBARRAYPROC)glfwGetProcAddress("glEnableVertexAttribArray");
+    
+    // Load OpenGL 2.0+ shader functions
+    glCreateShader = (PFNGLCREATESHADERPROC)glfwGetProcAddress("glCreateShader");
+    glShaderSource = (PFNGLSHADERSOURCEPROC)glfwGetProcAddress("glShaderSource");
+    glCompileShader = (PFNGLCOMPILESHADERPROC)glfwGetProcAddress("glCompileShader");
+    glGetShaderiv = (PFNGLGETSHADERIVPROC)glfwGetProcAddress("glGetShaderiv");
+    glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)glfwGetProcAddress("glGetShaderInfoLog");
+    glCreateProgram = (PFNGLCREATEPROGRAMPROC)glfwGetProcAddress("glCreateProgram");
+    glAttachShader = (PFNGLATTACHSHADERPROC)glfwGetProcAddress("glAttachShader");
+    glLinkProgram = (PFNGLLINKPROGRAMPROC)glfwGetProcAddress("glLinkProgram");
+    glGetProgramiv = (PFNGLGETPROGRAMIVPROC)glfwGetProcAddress("glGetProgramiv");
+    glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)glfwGetProcAddress("glGetProgramInfoLog");
+    glDeleteShader = (PFNGLDELETESHADERPROC)glfwGetProcAddress("glDeleteShader");
+    glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)glfwGetProcAddress("glGetUniformLocation");
+    glUseProgram = (PFNGLUSEPROGRAMPROC)glfwGetProcAddress("glUseProgram");
+    glUniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)glfwGetProcAddress("glUniformMatrix4fv");
+    glUniform3f = (PFNGLUNIFORM3FPROC)glfwGetProcAddress("glUniform3f");
+    glUniform1f = (PFNGLUNIFORM1FPROC)glfwGetProcAddress("glUniform1f");
+    glUniform1i = (PFNGLUNIFORM1IPROC)glfwGetProcAddress("glUniform1i");
+    
+    // Check if all functions were loaded successfully
+    if (!glGenVertexArrays || !glBindVertexArray || !glDeleteVertexArrays ||
+        !glGenBuffers || !glBindBuffer || !glBufferData || !glDeleteBuffers ||
+        !glVertexAttribPointer || !glEnableVertexAttribArray ||
+        !glCreateShader || !glShaderSource || !glCompileShader || !glGetShaderiv ||
+        !glGetShaderInfoLog || !glCreateProgram || !glAttachShader || !glLinkProgram ||
+        !glGetProgramiv || !glGetProgramInfoLog || !glDeleteShader ||
+        !glGetUniformLocation || !glUseProgram || !glUniformMatrix4fv ||
+        !glUniform3f || !glUniform1f || !glUniform1i) {
+        return -1;
+    }
+#endif
+    return 0;
+}
+
 // Initialize FPS engine
 int fps_engine_init(FPSEngine *engine, int width, int height, const char *title) {
     g_engine = engine;
@@ -102,6 +188,12 @@ int fps_engine_init(FPSEngine *engine, int width, int height, const char *title)
     }
     
     glfwMakeContextCurrent(engine->window);
+    
+    // Load OpenGL extensions for compatibility
+    if (load_opengl_extensions() != 0) {
+        fprintf(stderr, "Failed to load required OpenGL extensions\n");
+        return -1;
+    }
     
     // Set callbacks
     glfwSetFramebufferSizeCallback(engine->window, framebuffer_size_callback);
@@ -206,6 +298,14 @@ void camera_process_mouse_movement(Camera *camera, float xoffset, float yoffset,
     }
     
     camera_update_vectors(camera);
+}
+
+void camera_process_mouse_scroll(Camera *camera, float yoffset) {
+    camera->zoom -= yoffset;
+    if (camera->zoom < 1.0f)
+        camera->zoom = 1.0f;
+    if (camera->zoom > 45.0f)
+        camera->zoom = 45.0f;
 }
 
 void camera_get_view_matrix(Camera *camera, float *matrix) {
@@ -438,6 +538,7 @@ void fps_engine_cleanup(FPSEngine *engine) {
 
 // GLFW callbacks
 void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
+    (void)window; // Suppress unused parameter warning
     if (g_engine->camera.first_mouse) {
         g_engine->camera.last_x = xpos;
         g_engine->camera.last_y = ypos;
@@ -453,7 +554,16 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
     camera_process_mouse_movement(&g_engine->camera, xoffset, yoffset, true);
 }
 
+void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
+    (void)window;  // Suppress unused parameter warning
+    (void)xoffset; // Suppress unused parameter warning
+    camera_process_mouse_scroll(&g_engine->camera, (float)yoffset);
+}
+
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+    (void)window;   // Suppress unused parameter warning
+    (void)scancode; // Suppress unused parameter warning
+    (void)mods;     // Suppress unused parameter warning
     if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS)
             g_engine->input.keys[key] = true;
@@ -463,6 +573,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 }
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+    (void)window; // Suppress unused parameter warning
     glViewport(0, 0, width, height);
     g_engine->screen_width = width;
     g_engine->screen_height = height;
