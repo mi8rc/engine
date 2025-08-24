@@ -86,62 +86,109 @@ class IGSParser:
                 iges_file = iges.read(filename)
                 self.debug_info.append(f"Using iges library")
                 
-            self.debug_info.append(f"Total entities: {len(iges_file.entities)}")
-            
-            for entity in iges_file.entities:
-                entity_type = entity.entity_type
-                self.debug_info.append(f"Entity {entity.entity_number}: Type {entity_type} ({entity.__class__.__name__})")
+            # Handle different API structures
+            if hasattr(iges_file, 'entities'):
+                entities = iges_file.entities
+            elif hasattr(iges_file, 'get_entities'):
+                entities = iges_file.get_entities()
+            elif callable(getattr(iges_file, 'entities', None)):
+                entities = iges_file.entities()
+            else:
+                # Try to access entities as a property
+                entities = iges_file.entities
                 
-                if entity_type == 126:  # Rational B-Spline Curve
-                    curve = self._parse_rational_bspline_curve(entity)
-                    if curve:
-                        self.curves.append(curve)
-                        self.debug_info.append(f"  -> Parsed NURBS curve: {curve.name}")
+            if entities is None:
+                self.debug_info.append("No entities found in IGS file")
+                return False
+                
+            # Get entity count safely
+            try:
+                entity_count = len(entities)
+                self.debug_info.append(f"Total entities: {entity_count}")
+            except TypeError:
+                # If entities is not a list, try to iterate
+                entity_count = 0
+                temp_entities = []
+                for entity in entities:
+                    temp_entities.append(entity)
+                    entity_count += 1
+                entities = temp_entities
+                self.debug_info.append(f"Total entities: {entity_count}")
+            
+            for entity in entities:
+                try:
+                    # Get entity type safely
+                    if hasattr(entity, 'entity_type'):
+                        entity_type = entity.entity_type
+                    elif hasattr(entity, 'type'):
+                        entity_type = entity.type
+                    else:
+                        entity_type = getattr(entity, 'type', 0)
+                    
+                    # Get entity number safely
+                    if hasattr(entity, 'entity_number'):
+                        entity_number = entity.entity_number
+                    elif hasattr(entity, 'number'):
+                        entity_number = entity.number
+                    else:
+                        entity_number = getattr(entity, 'number', 0)
+                    
+                    self.debug_info.append(f"Entity {entity_number}: Type {entity_type} ({entity.__class__.__name__})")
+                    
+                    if entity_type == 126:  # Rational B-Spline Curve
+                        curve = self._parse_rational_bspline_curve(entity)
+                        if curve:
+                            self.curves.append(curve)
+                            self.debug_info.append(f"  -> Parsed NURBS curve: {curve.name}")
+                            
+                    elif entity_type == 128:  # Rational B-Spline Surface
+                        surface = self._parse_rational_bspline_surface(entity)
+                        if surface:
+                            self.surfaces.append(surface)
+                            self.debug_info.append(f"  -> Parsed NURBS surface: {surface.name}")
+                            
+                    elif entity_type == 110:  # Line
+                        # Convert line to simple curve
+                        curve = self._parse_line_entity(entity)
+                        if curve:
+                            self.curves.append(curve)
+                            self.debug_info.append(f"  -> Converted line to curve: {curve.name}")
+                            
+                    elif entity_type == 120:  # Surface of Revolution
+                        # Convert to NURBS surface
+                        surface = self._parse_surface_of_revolution(entity)
+                        if surface:
+                            self.surfaces.append(surface)
+                            self.debug_info.append(f"  -> Converted revolution to surface: {surface.name}")
+                            
+                    elif entity_type == 100:  # Circular Arc
+                        # Convert circular arc to NURBS curve
+                        curve = self._parse_circular_arc(entity)
+                        if curve:
+                            self.curves.append(curve)
+                            self.debug_info.append(f"  -> Converted circular arc to curve: {curve.name}")
+                            
+                    elif entity_type == 102:  # Composite Curve
+                        # Parse composite curve
+                        curves = self._parse_composite_curve(entity)
+                        for curve in curves:
+                            self.curves.append(curve)
+                            self.debug_info.append(f"  -> Parsed composite curve component: {curve.name}")
+                            
+                    elif entity_type == 108:  # Plane
+                        # Convert plane to NURBS surface
+                        surface = self._parse_plane_entity(entity)
+                        if surface:
+                            self.surfaces.append(surface)
+                            self.debug_info.append(f"  -> Converted plane to surface: {surface.name}")
+                            
+                    else:
+                        self.ignored_entities.append(f"Entity {entity_type}: {entity.__class__.__name__}")
+                        self.debug_info.append(f"  -> Ignored entity type {entity_type}")
                         
-                elif entity_type == 128:  # Rational B-Spline Surface
-                    surface = self._parse_rational_bspline_surface(entity)
-                    if surface:
-                        self.surfaces.append(surface)
-                        self.debug_info.append(f"  -> Parsed NURBS surface: {surface.name}")
-                        
-                elif entity_type == 110:  # Line
-                    # Convert line to simple curve
-                    curve = self._parse_line_entity(entity)
-                    if curve:
-                        self.curves.append(curve)
-                        self.debug_info.append(f"  -> Converted line to curve: {curve.name}")
-                        
-                elif entity_type == 120:  # Surface of Revolution
-                    # Convert to NURBS surface
-                    surface = self._parse_surface_of_revolution(entity)
-                    if surface:
-                        self.surfaces.append(surface)
-                        self.debug_info.append(f"  -> Converted revolution to surface: {surface.name}")
-                        
-                elif entity_type == 100:  # Circular Arc
-                    # Convert circular arc to NURBS curve
-                    curve = self._parse_circular_arc(entity)
-                    if curve:
-                        self.curves.append(curve)
-                        self.debug_info.append(f"  -> Converted circular arc to curve: {curve.name}")
-                        
-                elif entity_type == 102:  # Composite Curve
-                    # Parse composite curve
-                    curves = self._parse_composite_curve(entity)
-                    for curve in curves:
-                        self.curves.append(curve)
-                        self.debug_info.append(f"  -> Parsed composite curve component: {curve.name}")
-                        
-                elif entity_type == 108:  # Plane
-                    # Convert plane to NURBS surface
-                    surface = self._parse_plane_entity(entity)
-                    if surface:
-                        self.surfaces.append(surface)
-                        self.debug_info.append(f"  -> Converted plane to surface: {surface.name}")
-                        
-                else:
-                    self.ignored_entities.append(f"Entity {entity.entity_type}: {entity.__class__.__name__}")
-                    self.debug_info.append(f"  -> Ignored entity type {entity_type}")
+                except Exception as entity_error:
+                    self.debug_info.append(f"  -> Error processing entity: {str(entity_error)}")
+                    continue
             
             return True
             
