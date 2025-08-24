@@ -1,11 +1,11 @@
-name: CI/CD - Build and Release
+name: CI/CD - Build and Releases
 
 on:
   push:
-    branches: [ main, develop ]
+
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main ]
+
 
 env:
   PROJECT_NAME: nurbs_map_editor
