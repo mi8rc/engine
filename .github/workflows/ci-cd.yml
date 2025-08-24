@@ -1,11 +1,11 @@
-name: CI/CD - Build and Release
+name: CI/CD - Build and Releases
 
 on:
   push:
-    branches: [ main, develop ]
+
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main ]
+
 
 env:
   PROJECT_NAME: nurbs_map_editor
@@ -34,6 +34,7 @@ jobs:
           build-essential \
           pkg-config \
           libgtk-3-dev \
+          libgtkglext1-dev \
           libgl1-mesa-dev \
           libglu1-mesa-dev \
           libglfw3-dev \
@@ -189,6 +190,7 @@ jobs:
           build-essential \
           pkg-config \
           libgtk-3-dev \
+          libgtkglext1-dev \
           libgl1-mesa-dev \
           libglu1-mesa-dev \
           libglfw3-dev \

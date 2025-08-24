@@ -30,6 +30,42 @@ DEBUG_LDFLAGS = -fsanitize=address
 GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0)
 GTK_LIBS = $(shell pkg-config --libs gtk+-3.0)
 
+# GTK+ OpenGL extension (gtkglext)
+GTKGLEXT_CFLAGS = $(shell pkg-config --cflags gtkglext-3.0 2>/dev/null || echo "")
+GTKGLEXT_LIBS = $(shell pkg-config --libs gtkglext-3.0 2>/dev/null || echo "-lgtkglext-3.0")
+GTKGLEXT_DEFINE = $(shell pkg-config --exists gtkglext-3.0 2>/dev/null && echo "-DHAVE_GTKGLEXT" || echo "")
+
+# Alternative approach for systems without pkg-config for gtkglext
+# Check if gtkglext headers exist in common locations
+GTKGLEXT_HEADER_CHECK = $(shell test -f /usr/include/gtk-3.0/gtk/gtkgl.h && echo "-DHAVE_GTKGLEXT" || echo "")
+GTKGLEXT_DEFINE := $(if $(GTKGLEXT_DEFINE),$(GTKGLEXT_DEFINE),$(GTKGLEXT_HEADER_CHECK))
+
+# For Windows MSYS2, check additional paths
+ifeq ($(OS),Windows_NT)
+GTKGLEXT_HEADER_CHECK_WIN = $(shell test -f /mingw64/include/gtk-3.0/gtk/gtkgl.h && echo "-DHAVE_GTKGLEXT" || echo "")
+GTKGLEXT_DEFINE := $(if $(GTKGLEXT_DEFINE),$(GTKGLEXT_DEFINE),$(GTKGLEXT_HEADER_CHECK_WIN))
+endif
+
+# Check for MSYS2 environment specifically
+ifneq ($(findstring MINGW,$(shell uname -s)),)
+GTKGLEXT_HEADER_CHECK_MSYS2 = $(shell test -f /mingw64/include/gtk-3.0/gtk/gtkgl.h && echo "-DHAVE_GTKGLEXT" || echo "")
+GTKGLEXT_DEFINE := $(if $(GTKGLEXT_DEFINE),$(GTKGLEXT_DEFINE),$(GTKGLEXT_HEADER_CHECK_MSYS2))
+endif
+
+# Debug information for gtkglext
+.PHONY: debug-gtkglext
+debug-gtkglext:
+	@echo "GTKGLEXT_CFLAGS: $(GTKGLEXT_CFLAGS)"
+	@echo "GTKGLEXT_LIBS: $(GTKGLEXT_LIBS)"
+	@echo "GTKGLEXT_DEFINE: $(GTKGLEXT_DEFINE)"
+	@echo "Checking for gtkglext headers:"
+	@test -f /usr/include/gtk-3.0/gtk/gtkgl.h && echo "Found: /usr/include/gtk-3.0/gtk/gtkgl.h" || echo "Not found: /usr/include/gtk-3.0/gtk/gtkgl.h"
+	@test -f /mingw64/include/gtk-3.0/gtk/gtkgl.h && echo "Found: /mingw64/include/gtk-3.0/gtk/gtkgl.h" || echo "Not found: /mingw64/include/gtk-3.0/gtk/gtkgl.h"
+	@echo "System info:"
+	@echo "  OS: $(OS)"
+	@echo "  uname -s: $(shell uname -s)"
+	@echo "  pkg-config gtkglext-3.0: $(shell pkg-config --exists gtkglext-3.0 && echo "YES" || echo "NO")"
+
 GL_CFLAGS = $(shell pkg-config --cflags gl glu)
 GL_LIBS = $(shell pkg-config --libs gl glu) -lGL -lGLU
 
@@ -41,12 +77,12 @@ MATH_LIBS = -lm
 PTHREAD_LIBS = -lpthread
 
 # Combined flags
-ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GTKGLEXT_CFLAGS) $(GTKGLEXT_DEFINE) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
+ALL_LIBS = $(GTK_LIBS) $(GTKGLEXT_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
 # Debug flags
-DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GTKGLEXT_CFLAGS) $(GTKGLEXT_DEFINE) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
+DEBUG_ALL_LIBS = $(GTK_LIBS) $(GTKGLEXT_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
 # Source files
 EDITOR_SOURCES = \
@@ -245,6 +281,10 @@ check-deps:
 	@echo "Checking dependencies..."
 	@echo -n "GTK+ 3.0: "
 	@pkg-config --exists gtk+-3.0 && echo "OK" || echo "MISSING"
+	@echo -n "GTK+ OpenGL Extension (pkg-config): "
+	@pkg-config --exists gtkglext-3.0 && echo "OK" || echo "MISSING"
+	@echo -n "GTK+ OpenGL Extension (header check): "
+	@test -f /usr/include/gtk-3.0/gtk/gtkgl.h && echo "OK" || echo "MISSING"
 	@echo -n "OpenGL: "
 	@pkg-config --exists gl && echo "OK" || echo "MISSING"
 	@echo -n "GLU: "
@@ -262,6 +302,7 @@ install-deps-ubuntu:
 		build-essential \
 		pkg-config \
 		libgtk-3-dev \
+		libgtkglext1-dev \
 		libgl1-mesa-dev \
 		libglu1-mesa-dev \
 		libglfw3-dev \
