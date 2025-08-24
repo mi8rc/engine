@@ -974,3 +974,32 @@ static gboolean on_viewport_scroll(GtkWidget *widget, GdkEventScroll *event, gpo
     printf("Viewport scroll\n");
     return TRUE;
 }
+
+// Stub implementations for missing NURBS functions
+void editor_new_scene(MapEditor *editor) {
+    if (!editor) return;
+    
+    // Initialize with empty scene
+    editor->objects = NULL;
+    editor->lights = NULL;
+    editor->selected_object = NULL;
+    editor->selected_light = NULL;
+    editor->scene_modified = false;
+    
+    printf("New scene created\n");
+}
+
+void free_nurbs_surface(NURBSSurface *surface) {
+    if (surface) {
+        free(surface);
+    }
+}
+
+void free_tessellated_surface(TessellatedSurface *surface) {
+    if (surface) {
+        if (surface->points) {
+            free(surface->points);
+        }
+        free(surface);
+    }
+}

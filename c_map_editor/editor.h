@@ -268,6 +268,13 @@ void editor_create_properties_panel(MapEditor *editor);
 void editor_create_viewport(MapEditor *editor);
 void editor_update_tool_buttons(MapEditor *editor);
 
+// Scene management functions
+void editor_new_scene(MapEditor *editor);
+
+// NURBS function stubs
+void free_nurbs_surface(NURBSSurface *surface);
+void free_tessellated_surface(TessellatedSurface *surface);
+
 // Utility functions
 const char* object_type_to_string(ObjectType type);
 const char* light_type_to_string(LightType type);
