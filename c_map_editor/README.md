@@ -46,7 +46,20 @@ The NURBS Map Editor is a powerful 3D modeling and level design tool specificall
 - **Zoom**: Smooth zoom in/out with mouse wheel
 - **Preset Views**: Top, Front, Side, and Perspective views
 
+## Build Status
+
+[![CI/CD](https://github.com/your-repo/nurbs-map-editor/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-repo/nurbs-map-editor/actions/workflows/ci-cd.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-blue)](https://github.com/your-repo/nurbs-map-editor/releases)
+
 ## Installation
+
+### Automated Builds
+
+Pre-built binaries are available for download from the [Releases](https://github.com/your-repo/nurbs-map-editor/releases) page:
+
+- **Linux**: Debian packages (.deb) and source packages (.tar.gz)
+- **Windows**: ZIP packages for 64-bit and 32-bit systems with all dependencies included
 
 ### Prerequisites
 
@@ -70,6 +83,17 @@ sudo pacman -S base-devel pkgconf gtk3 mesa glu glfw glew
 
 ### Building from Source
 
+#### Quick Build (Cross-Platform)
+
+Use the automated build script:
+```bash
+git clone https://github.com/your-repo/nurbs-map-editor.git
+cd nurbs-map-editor/c_map_editor
+./build.sh all
+```
+
+#### Manual Build
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/your-repo/nurbs-map-editor.git
@@ -89,6 +113,17 @@ make release
 4. Run the editor:
 ```bash
 make run
+```
+
+#### Windows Build (MSYS2)
+
+For Windows users with MSYS2:
+```bash
+# Use Windows-specific Makefile
+make -f Makefile.windows release
+
+# Or use the batch script
+build.bat all
 ```
 
 ### Installation
