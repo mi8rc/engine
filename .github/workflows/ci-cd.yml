@@ -108,20 +108,25 @@ jobs:
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
-        msystem: ${{ matrix.sys }}
-        update: true
+        msystem: MINGW64
         install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-glfw
+          mingw-w64-x86_64-json-c
+          mingw-w64-x86_64-pkg-config
+          make
           git
           base-devel
-          mingw-w64-${{ matrix.env }}-toolchain
-          mingw-w64-${{ matrix.env }}-cmake
-          mingw-w64-${{ matrix.env }}-pkg-config
-          mingw-w64-${{ matrix.env }}-gtk3
-          mingw-w64-${{ matrix.env }}-mesa
-          mingw-w64-${{ matrix.env }}-gtkglext
-          mingw-w64-${{ matrix.env }}-glfw
-          mingw-w64-${{ matrix.env }}-glew
-          mingw-w64-${{ matrix.env }}-cppcheck
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-pkg-config
+          mingw-w64-x86_64-gtk3
+          mingw-w64-x86_64-freeglut
+          mingw-w64-x86_64-mesa
+          mingw-w64-x86_64-gtkglext
+          mingw-w64-x86_64-glfw
+          mingw-w64-x86_64-glew
+          mingw-w64-x86_64-cppcheck
     
     - name: Check dependencies
       working-directory: c_map_editor
