@@ -259,6 +259,15 @@ void editor_redo(MapEditor *editor);
 bool editor_import_iges(MapEditor *editor, const char *filename);
 bool editor_export_iges(MapEditor *editor, const char *filename);
 
+// Missing function declarations
+void editor_setup_actions(MapEditor *editor);
+void editor_create_layout(MapEditor *editor);
+void editor_create_toolbar(MapEditor *editor);
+void editor_create_scene_hierarchy(MapEditor *editor);
+void editor_create_properties_panel(MapEditor *editor);
+void editor_create_viewport(MapEditor *editor);
+void editor_update_tool_buttons(MapEditor *editor);
+
 // Utility functions
 const char* object_type_to_string(ObjectType type);
 const char* light_type_to_string(LightType type);
