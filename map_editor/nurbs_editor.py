@@ -469,9 +469,9 @@ class NURBSMapEditor:
         # Update tool button states
         for tool_id, button in self.tool_buttons.items():
             if tool_id == self.current_tool:
-                button.configure(relief=tk.SUNKEN)
+                button.state(['pressed'])
             else:
-                button.configure(relief=tk.RAISED)
+                button.state(['!pressed'])
     
     # Object management
     def add_object(self, object_type: ObjectType):
