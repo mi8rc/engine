@@ -258,7 +258,7 @@ class NURBSMapEditor:
         hierarchy_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Tree view for scene objects
-        self.scene_tree = ttk.Treeview(hierarchy_frame, selectmode=tk.SINGLE)
+        self.scene_tree = ttk.Treeview(hierarchy_frame, selectmode="browse")
         self.scene_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Tree columns
