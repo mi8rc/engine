@@ -1,6 +1,7 @@
 #ifndef NURBS_PRIMITIVES_H
 #define NURBS_PRIMITIVES_H
 
+#include <stdbool.h>
 #include "../src/nurbs.h"
 
 // NURBS primitive creation functions

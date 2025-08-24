@@ -76,23 +76,36 @@ GLFW_LIBS = $(shell pkg-config --libs glfw3)
 MATH_LIBS = -lm
 PTHREAD_LIBS = -lpthread
 
-# Combined flags (without OpenGL extensions for now)
-ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) -I$(NURBS_SRC_DIR)
-ALL_LIBS = $(GTK_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+# Combined flags
+ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GTKGLEXT_CFLAGS) $(GTKGLEXT_DEFINE) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
+ALL_LIBS = $(GTK_LIBS) $(GTKGLEXT_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
-# Debug flags (without OpenGL extensions for now)
-DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) -I$(NURBS_SRC_DIR)
-DEBUG_ALL_LIBS = $(GTK_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+# Debug flags
+DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GTKGLEXT_CFLAGS) $(GTKGLEXT_DEFINE) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
+DEBUG_ALL_LIBS = $(GTK_LIBS) $(GTKGLEXT_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
-# Source files (only existing files for now)
+# Source files
 EDITOR_SOURCES = \
 	main.c \
 	editor.c \
 	iges_loader.c \
-	nurbs_primitives.c
+	nurbs_primitives.c \
+	viewport.c \
+	scene_hierarchy.c \
+	properties_panel.c \
+	file_operations.c \
+	undo_redo.c \
+	camera_controls.c \
+	selection_system.c \
+	material_editor.c \
+	lighting_system.c
 
-# NURBS library sources (excluded for now due to OpenGL/GLFW dependencies)
-NURBS_SOURCES =
+# NURBS library sources
+NURBS_SOURCES = \
+	$(NURBS_SRC_DIR)/nurbs.c \
+	$(NURBS_SRC_DIR)/math_utils.c \
+	$(NURBS_SRC_DIR)/fps_engine.c \
+	$(NURBS_SRC_DIR)/map_loader.c
 
 # All sources
 ALL_SOURCES = $(EDITOR_SOURCES) $(NURBS_SOURCES)
