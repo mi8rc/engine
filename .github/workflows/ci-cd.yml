@@ -141,9 +141,7 @@ jobs:
       working-directory: c_map_editor
       run: make analyze || true  # Don't fail on warnings
     
-    - name: Build debug version
-      working-directory: c_map_editor
-      run: make debug CC=gcc
+
     
     - name: Create Windows package
       working-directory: c_map_editor
