@@ -135,7 +135,7 @@ jobs:
     
     - name: Build release
       working-directory: c_map_editor
-      run: make release CC=gcc
+      run: make 
     
     - name: Run static analysis
       working-directory: c_map_editor
