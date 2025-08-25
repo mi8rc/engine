@@ -1,6 +1,6 @@
 # NURBS FPS Game Engine
 
-A complete First-Person Shooter game engine that uses **ONLY NURBS surfaces** for all geometry rendering, with lighting and collision detection support. Includes a Python map editor similar to Roblox Studio.
+A complete First-Person Shooter game engine that uses **ONLY NURBS surfaces** for all geometry rendering, with lighting and collision detection support. Includes a Python map editor similar to hammer.
 
 ## 🚨 IMPORTANT: NO POLYGONS!
 
@@ -17,7 +17,7 @@ This engine is built entirely around NURBS (Non-Uniform Rational B-Splines) surf
 - **Map Loading**: Load scenes created in the Python editor
 
 ### Python Map Editor
-- **Roblox Studio-like Interface**: Familiar 3D editing environment
+- **hammmer Studio-like Interface**: Familiar 3D editing environment
 - **NURBS Object Placement**: Add spheres, planes, cylinders, and tori
 - **Light Management**: Place and configure point, directional, and spot lights
 - **Material Editor**: Adjust ambient, diffuse, specular properties and shininess
@@ -225,6 +225,4 @@ This project demonstrates advanced NURBS mathematics in real-time applications. 
 - OpenGL Programming Guide
 - Computer Graphics: Principles and Practice
 
----
 
-**Remember: This engine uses ONLY NURBS surfaces. No polygons! 🎯**
