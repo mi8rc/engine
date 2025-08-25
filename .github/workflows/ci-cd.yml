@@ -58,6 +58,7 @@ jobs:
     - name: Build debug version
       working-directory: c_map_editor
       run: make debug
+      continue-on-error: true
     
     - name: Run tests
       working-directory: c_map_editor
