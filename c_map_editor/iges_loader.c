@@ -467,5 +467,306 @@ static void iges_parse_global_parameter(const char *param, int index, IgesGlobal
     }
 }
 
-// Continue with more helper functions...
-// (File is getting long, will continue in next part)
+// Missing function implementations
+
+// Convert IGES entities to NURBS structures
+bool iges_convert_entities_to_nurbs(IgesModel *model) {
+    if (!model) {
+        iges_last_error = IGES_ERROR_PARSE_ERROR;
+        return false;
+    }
+    
+    // Count surfaces and curves first
+    int surface_count = 0;
+    int curve_count = 0;
+    
+    IgesDirectoryEntry *entry = model->directory_entries;
+    while (entry) {
+        if (entry->entity_type == IGES_ENTITY_RATIONAL_BSPLINE_SURFACE ||
+            entry->entity_type == IGES_ENTITY_PARAMETRIC_SPLINE_SURFACE ||
+            entry->entity_type == IGES_ENTITY_PLANE_SURFACE ||
+            entry->entity_type == IGES_ENTITY_CYLINDRICAL_SURFACE ||
+            entry->entity_type == IGES_ENTITY_SPHERICAL_SURFACE ||
+            entry->entity_type == IGES_ENTITY_TOROIDAL_SURFACE) {
+            surface_count++;
+        } else if (entry->entity_type == IGES_ENTITY_RATIONAL_BSPLINE_CURVE ||
+                   entry->entity_type == IGES_ENTITY_PARAMETRIC_SPLINE_CURVE) {
+            curve_count++;
+        }
+        entry = entry->next;
+    }
+    
+    // Allocate arrays
+    if (surface_count > 0) {
+        model->surfaces = calloc(surface_count, sizeof(NURBSSurface*));
+        if (!model->surfaces) {
+            iges_last_error = IGES_ERROR_MEMORY_ALLOCATION;
+            return false;
+        }
+        model->surface_count = surface_count;
+    }
+    
+    if (curve_count > 0) {
+        model->curves = calloc(curve_count, sizeof(NURBSCurve*));
+        if (!model->curves) {
+            iges_last_error = IGES_ERROR_MEMORY_ALLOCATION;
+            return false;
+        }
+        model->curve_count = curve_count;
+    }
+    
+    // Convert entities
+    int surface_idx = 0;
+    int curve_idx = 0;
+    
+    entry = model->directory_entries;
+    while (entry) {
+        IgesParameterData *param = model->parameter_data;
+        while (param && param->directory_pointer != entry->sequence_number) {
+            param = param->next;
+        }
+        
+        if (param) {
+            if (entry->entity_type == IGES_ENTITY_RATIONAL_BSPLINE_SURFACE && surface_idx < surface_count) {
+                iges_parse_rational_bspline_surface(param, &model->surfaces[surface_idx++]);
+            } else if (entry->entity_type == IGES_ENTITY_RATIONAL_BSPLINE_CURVE && curve_idx < curve_count) {
+                iges_parse_rational_bspline_curve(param, &model->curves[curve_idx++]);
+            }
+            // Add more entity types as needed
+        }
+        
+        entry = entry->next;
+    }
+    
+    return true;
+}
+
+// Parse directory entry from two lines
+static IgesDirectoryEntry* iges_parse_directory_entry(const char *line1, const char *line2) {
+    if (!line1 || !line2) return NULL;
+    
+    IgesDirectoryEntry *entry = calloc(1, sizeof(IgesDirectoryEntry));
+    if (!entry) {
+        iges_last_error = IGES_ERROR_MEMORY_ALLOCATION;
+        return NULL;
+    }
+    
+    // Parse first line (positions 1-8, 9-16, etc.)
+    char temp[9];
+    
+    // Entity type (positions 1-8)
+    strncpy(temp, line1, 8); temp[8] = '\0';
+    entry->entity_type = iges_parse_int(temp);
+    
+    // Parameter data pointer (positions 9-16)
+    strncpy(temp, line1 + 8, 8); temp[8] = '\0';
+    entry->parameter_data_pointer = iges_parse_int(temp);
+    
+    // Structure (positions 17-24)
+    strncpy(temp, line1 + 16, 8); temp[8] = '\0';
+    entry->structure = iges_parse_int(temp);
+    
+    // Line font pattern (positions 25-32)
+    strncpy(temp, line1 + 24, 8); temp[8] = '\0';
+    entry->line_font_pattern = iges_parse_int(temp);
+    
+    // Level (positions 33-40)
+    strncpy(temp, line1 + 32, 8); temp[8] = '\0';
+    entry->level = iges_parse_int(temp);
+    
+    // View (positions 41-48)
+    strncpy(temp, line1 + 40, 8); temp[8] = '\0';
+    entry->view = iges_parse_int(temp);
+    
+    // Transformation matrix (positions 49-56)
+    strncpy(temp, line1 + 48, 8); temp[8] = '\0';
+    entry->transformation_matrix = iges_parse_int(temp);
+    
+    // Label display associativity (positions 57-64)
+    strncpy(temp, line1 + 56, 8); temp[8] = '\0';
+    entry->label_display_associativity = iges_parse_int(temp);
+    
+    // Status number (positions 65-72)
+    strncpy(temp, line1 + 64, 8); temp[8] = '\0';
+    entry->status_number = iges_parse_int(temp);
+    
+    // Parse second line
+    // Sequence number (positions 1-8)
+    strncpy(temp, line2, 8); temp[8] = '\0';
+    entry->sequence_number = iges_parse_int(temp);
+    
+    // Entity type number (positions 9-16)
+    strncpy(temp, line2 + 8, 8); temp[8] = '\0';
+    entry->entity_type_number = iges_parse_int(temp);
+    
+    // Line weight number (positions 17-24)
+    strncpy(temp, line2 + 16, 8); temp[8] = '\0';
+    entry->line_weight_number = iges_parse_int(temp);
+    
+    // Color number (positions 25-32)
+    strncpy(temp, line2 + 24, 8); temp[8] = '\0';
+    entry->color_number = iges_parse_int(temp);
+    
+    // Parameter line count (positions 33-40)
+    strncpy(temp, line2 + 32, 8); temp[8] = '\0';
+    entry->parameter_line_count = iges_parse_int(temp);
+    
+    // Form number (positions 41-48)
+    strncpy(temp, line2 + 40, 8); temp[8] = '\0';
+    entry->form_number = iges_parse_int(temp);
+    
+    // Check if this is a supported entity type
+    if (!iges_is_supported_entity(entry->entity_type)) {
+        free(entry);
+        return NULL;
+    }
+    
+    return entry;
+}
+
+// Parse parameter entry
+static IgesParameterData* iges_parse_parameter_entry(FILE *fp, int start_line, int line_count) {
+    (void)start_line; // Parameter will be read sequentially
+    
+    IgesParameterData *param = calloc(1, sizeof(IgesParameterData));
+    if (!param) {
+        iges_last_error = IGES_ERROR_MEMORY_ALLOCATION;
+        return NULL;
+    }
+    
+    // Allocate buffer for parameter data
+    size_t buffer_size = line_count * 80 + 1;
+    param->data = malloc(buffer_size);
+    if (!param->data) {
+        free(param);
+        iges_last_error = IGES_ERROR_MEMORY_ALLOCATION;
+        return NULL;
+    }
+    
+    param->data[0] = '\0';
+    
+    // Read parameter lines
+    for (int i = 0; i < line_count; i++) {
+        char buffer[82];
+        if (iges_read_record(fp, buffer, sizeof(buffer), 'P')) {
+            // Remove section identifier and line number
+            buffer[64] = '\0'; // Parameter data is in columns 1-64
+            strncat(param->data, buffer, buffer_size - strlen(param->data) - 1);
+        }
+    }
+    
+    param->data_length = strlen(param->data);
+    return param;
+}
+
+// Check if entity type is supported
+static bool iges_is_supported_entity(int entity_type) {
+    switch (entity_type) {
+        case IGES_ENTITY_RATIONAL_BSPLINE_SURFACE:
+        case IGES_ENTITY_RATIONAL_BSPLINE_CURVE:
+        case IGES_ENTITY_PARAMETRIC_SPLINE_SURFACE:
+        case IGES_ENTITY_PARAMETRIC_SPLINE_CURVE:
+        case IGES_ENTITY_PLANE_SURFACE:
+        case IGES_ENTITY_CYLINDRICAL_SURFACE:
+        case IGES_ENTITY_SPHERICAL_SURFACE:
+        case IGES_ENTITY_TOROIDAL_SURFACE:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Utility function implementations
+bool iges_parse_parameter_line(const char *line, char delimiter, char **tokens, int *token_count) {
+    if (!line || !tokens || !token_count) return false;
+    
+    *token_count = 0;
+    char *line_copy = malloc(strlen(line) + 1);
+    if (!line_copy) return false;
+    
+    strcpy(line_copy, line);
+    
+    char *token = strtok(line_copy, &delimiter);
+    while (token && *token_count < 1024) {
+        tokens[*token_count] = malloc(strlen(token) + 1);
+        if (tokens[*token_count]) {
+            strcpy(tokens[*token_count], token);
+            iges_trim_string(tokens[*token_count]);
+            (*token_count)++;
+        }
+        token = strtok(NULL, &delimiter);
+    }
+    
+    free(line_copy);
+    return true;
+}
+
+float iges_parse_float(const char *str) {
+    if (!str) return 0.0f;
+    return (float)atof(str);
+}
+
+int iges_parse_int(const char *str) {
+    if (!str) return 0;
+    return atoi(str);
+}
+
+void iges_trim_string(char *str) {
+    if (!str) return;
+    
+    // Trim leading whitespace
+    char *start = str;
+    while (isspace(*start)) start++;
+    
+    // Trim trailing whitespace
+    char *end = start + strlen(start) - 1;
+    while (end > start && isspace(*end)) end--;
+    
+    // Move trimmed string to beginning
+    size_t len = end - start + 1;
+    memmove(str, start, len);
+    str[len] = '\0';
+}
+
+// Error handling
+const char* iges_get_error_string(IgesError error) {
+    switch (error) {
+        case IGES_ERROR_NONE: return "No error";
+        case IGES_ERROR_FILE_NOT_FOUND: return "File not found";
+        case IGES_ERROR_INVALID_FORMAT: return "Invalid IGES format";
+        case IGES_ERROR_PARSE_ERROR: return "Parse error";
+        case IGES_ERROR_UNSUPPORTED_ENTITY: return "Unsupported entity type";
+        case IGES_ERROR_MEMORY_ALLOCATION: return "Memory allocation failed";
+        case IGES_ERROR_WRITE_ERROR: return "Write error";
+        default: return "Unknown error";
+    }
+}
+
+// Stub implementations for missing entity parsers
+bool iges_parse_plane_surface(IgesParameterData *param, NURBSSurface **surface) {
+    (void)param; (void)surface;
+    // TODO: Implement plane surface parsing
+    iges_last_error = IGES_ERROR_UNSUPPORTED_ENTITY;
+    return false;
+}
+
+bool iges_parse_cylindrical_surface(IgesParameterData *param, NURBSSurface **surface) {
+    (void)param; (void)surface;
+    // TODO: Implement cylindrical surface parsing
+    iges_last_error = IGES_ERROR_UNSUPPORTED_ENTITY;
+    return false;
+}
+
+bool iges_parse_spherical_surface(IgesParameterData *param, NURBSSurface **surface) {
+    (void)param; (void)surface;
+    // TODO: Implement spherical surface parsing
+    iges_last_error = IGES_ERROR_UNSUPPORTED_ENTITY;
+    return false;
+}
+
+bool iges_parse_toroidal_surface(IgesParameterData *param, NURBSSurface **surface) {
+    (void)param; (void)surface;
+    // TODO: Implement toroidal surface parsing
+    iges_last_error = IGES_ERROR_UNSUPPORTED_ENTITY;
+    return false;
+}

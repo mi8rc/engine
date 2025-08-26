@@ -157,6 +157,7 @@ void iges_trim_string(char *str);
 // IGES to NURBS conversion
 NURBSSurface* iges_create_nurbs_surface_from_entity(IgesDirectoryEntry *entry, IgesParameterData *param);
 NURBSCurve* iges_create_nurbs_curve_from_entity(IgesDirectoryEntry *entry, IgesParameterData *param);
+bool iges_convert_entities_to_nurbs(IgesModel *model);
 
 // Error handling
 typedef enum {

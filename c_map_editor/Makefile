@@ -1,5 +1,5 @@
-# NURBS Map Editor - Comprehensive Build System
-# A Roblox Studio-like editor for NURBS-based FPS games with full IGES support
+# NURBS Map Editor - Windows MSYS2 Build System
+# Specialized Makefile for Windows compilation with MSYS2/MinGW
 
 # Project info
 PROJECT_NAME = nurbs_map_editor
@@ -14,75 +14,51 @@ OBJ_DIR = $(BUILD_DIR)/obj
 BIN_DIR = $(BUILD_DIR)/bin
 DIST_DIR = $(BUILD_DIR)/dist
 
-# Compiler settings
+# Windows-specific settings
+EXE_SUFFIX = .exe
+TARGET_ARCH ?= x86_64
+MSYS2_PREFIX = /mingw64
+ifeq ($(TARGET_ARCH),i686)
+    MSYS2_PREFIX = /mingw32
+endif
+
+# Compiler settings for Windows
 CC = gcc
 CXX = g++
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2 -g
-CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -O2 -g
-LDFLAGS = -Wl,--as-needed
+WINDRES = windres
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2 -g -DWIN32 -D_WIN32_WINNT=0x0601
+CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -O2 -g -DWIN32 -D_WIN32_WINNT=0x0601
+LDFLAGS = -Wl,--subsystem,windows -mwindows
 
 # Debug build settings
-DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -fsanitize=address
-DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -fsanitize=address
-DEBUG_LDFLAGS = -fsanitize=address
+DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -DWIN32 -D_WIN32_WINNT=0x0601
+DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -DWIN32 -D_WIN32_WINNT=0x0601
+DEBUG_LDFLAGS = -Wl,--subsystem,console
 
-# Package dependencies
+# Package dependencies (Windows/MSYS2)
 GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0)
 GTK_LIBS = $(shell pkg-config --libs gtk+-3.0)
 
-# GTK+ OpenGL extension (gtkglext)
-GTKGLEXT_CFLAGS = $(shell pkg-config --cflags gtkglext-3.0 2>/dev/null || echo "")
-GTKGLEXT_LIBS = $(shell pkg-config --libs gtkglext-3.0 2>/dev/null || echo "-lgtkglext-3.0")
-GTKGLEXT_DEFINE = $(shell pkg-config --exists gtkglext-3.0 2>/dev/null && echo "-DHAVE_GTKGLEXT" || echo "")
+GL_CFLAGS = $(shell pkg-config --cflags gl glu 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+GL_LIBS = $(shell pkg-config --libs gl glu 2>/dev/null || echo "-lopengl32 -lglu32")
 
-# Alternative approach for systems without pkg-config for gtkglext
-# Check if gtkglext headers exist in common locations
-GTKGLEXT_HEADER_CHECK = $(shell test -f /usr/include/gtk-3.0/gtk/gtkgl.h && echo "-DHAVE_GTKGLEXT" || echo "")
-GTKGLEXT_DEFINE := $(if $(GTKGLEXT_DEFINE),$(GTKGLEXT_DEFINE),$(GTKGLEXT_HEADER_CHECK))
+GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3 -lgdi32")
 
-# For Windows MSYS2, check additional paths
-ifeq ($(OS),Windows_NT)
-GTKGLEXT_HEADER_CHECK_WIN = $(shell test -f /mingw64/include/gtk-3.0/gtk/gtkgl.h && echo "-DHAVE_GTKGLEXT" || echo "")
-GTKGLEXT_DEFINE := $(if $(GTKGLEXT_DEFINE),$(GTKGLEXT_DEFINE),$(GTKGLEXT_HEADER_CHECK_WIN))
-endif
-
-# Check for MSYS2 environment specifically
-ifneq ($(findstring MINGW,$(shell uname -s)),)
-GTKGLEXT_HEADER_CHECK_MSYS2 = $(shell test -f /mingw64/include/gtk-3.0/gtk/gtkgl.h && echo "-DHAVE_GTKGLEXT" || echo "")
-GTKGLEXT_DEFINE := $(if $(GTKGLEXT_DEFINE),$(GTKGLEXT_DEFINE),$(GTKGLEXT_HEADER_CHECK_MSYS2))
-endif
-
-# Debug information for gtkglext
-.PHONY: debug-gtkglext
-debug-gtkglext:
-	@echo "GTKGLEXT_CFLAGS: $(GTKGLEXT_CFLAGS)"
-	@echo "GTKGLEXT_LIBS: $(GTKGLEXT_LIBS)"
-	@echo "GTKGLEXT_DEFINE: $(GTKGLEXT_DEFINE)"
-	@echo "Checking for gtkglext headers:"
-	@test -f /usr/include/gtk-3.0/gtk/gtkgl.h && echo "Found: /usr/include/gtk-3.0/gtk/gtkgl.h" || echo "Not found: /usr/include/gtk-3.0/gtk/gtkgl.h"
-	@test -f /mingw64/include/gtk-3.0/gtk/gtkgl.h && echo "Found: /mingw64/include/gtk-3.0/gtk/gtkgl.h" || echo "Not found: /mingw64/include/gtk-3.0/gtk/gtkgl.h"
-	@echo "System info:"
-	@echo "  OS: $(OS)"
-	@echo "  uname -s: $(shell uname -s)"
-	@echo "  pkg-config gtkglext-3.0: $(shell pkg-config --exists gtkglext-3.0 && echo "YES" || echo "NO")"
-
-GL_CFLAGS = $(shell pkg-config --cflags gl glu)
-GL_LIBS = $(shell pkg-config --libs gl glu) -lGL -lGLU
-
-GLFW_CFLAGS = $(shell pkg-config --cflags glfw3)
-GLFW_LIBS = $(shell pkg-config --libs glfw3)
+# Windows-specific libraries
+WIN_LIBS = -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32
 
 # Additional libraries
 MATH_LIBS = -lm
 PTHREAD_LIBS = -lpthread
 
 # Combined flags
-ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GTKGLEXT_CFLAGS) $(GTKGLEXT_DEFINE) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-ALL_LIBS = $(GTK_LIBS) $(GTKGLEXT_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
+ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
 # Debug flags
-DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GTKGLEXT_CFLAGS) $(GTKGLEXT_DEFINE) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-DEBUG_ALL_LIBS = $(GTK_LIBS) $(GTKGLEXT_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
+DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
 # Source files
 EDITOR_SOURCES = \
@@ -120,9 +96,13 @@ DEBUG_EDITOR_OBJECTS = $(EDITOR_SOURCES:%.c=$(OBJ_DIR)/debug_%.o)
 DEBUG_NURBS_OBJECTS = $(NURBS_SOURCES:$(NURBS_SRC_DIR)/%.c=$(OBJ_DIR)/debug_nurbs_%.o)
 DEBUG_ALL_OBJECTS = $(DEBUG_EDITOR_OBJECTS) $(DEBUG_NURBS_OBJECTS)
 
-# Target executable
-TARGET = $(BIN_DIR)/$(PROJECT_NAME)
-DEBUG_TARGET = $(BIN_DIR)/$(PROJECT_NAME)_debug
+# Resource files
+RESOURCE_RC = $(PROJECT_NAME).rc
+RESOURCE_OBJ = $(OBJ_DIR)/$(PROJECT_NAME).res.o
+
+# Target executables
+TARGET = $(BIN_DIR)/$(PROJECT_NAME)$(EXE_SUFFIX)
+DEBUG_TARGET = $(BIN_DIR)/$(PROJECT_NAME)_debug$(EXE_SUFFIX)
 
 # Default target
 .PHONY: all
@@ -149,253 +129,177 @@ $(BIN_DIR): | $(BUILD_DIR)
 $(DIST_DIR): | $(BUILD_DIR)
 	@mkdir -p $(DIST_DIR)
 
+# Create Windows resource file
+$(RESOURCE_RC):
+	@echo "Creating Windows resource file..."
+	@echo "#include <windows.h>" > $(RESOURCE_RC)
+	@echo "" >> $(RESOURCE_RC)
+	@echo "VS_VERSION_INFO VERSIONINFO" >> $(RESOURCE_RC)
+	@echo "FILEVERSION 1,0,0,0" >> $(RESOURCE_RC)
+	@echo "PRODUCTVERSION 1,0,0,0" >> $(RESOURCE_RC)
+	@echo "FILEFLAGSMASK VS_FFI_FILEFLAGSMASK" >> $(RESOURCE_RC)
+	@echo "FILEFLAGS 0x0L" >> $(RESOURCE_RC)
+	@echo "FILEOS VOS_NT_WINDOWS32" >> $(RESOURCE_RC)
+	@echo "FILETYPE VFT_APP" >> $(RESOURCE_RC)
+	@echo "FILESUBTYPE VFT2_UNKNOWN" >> $(RESOURCE_RC)
+	@echo "BEGIN" >> $(RESOURCE_RC)
+	@echo "    BLOCK \"StringFileInfo\"" >> $(RESOURCE_RC)
+	@echo "    BEGIN" >> $(RESOURCE_RC)
+	@echo "        BLOCK \"040904b0\"" >> $(RESOURCE_RC)
+	@echo "        BEGIN" >> $(RESOURCE_RC)
+	@echo "            VALUE \"CompanyName\", \"NURBS Editor Team\"" >> $(RESOURCE_RC)
+	@echo "            VALUE \"FileDescription\", \"$(DESCRIPTION)\"" >> $(RESOURCE_RC)
+	@echo "            VALUE \"FileVersion\", \"$(VERSION)\"" >> $(RESOURCE_RC)
+	@echo "            VALUE \"InternalName\", \"$(PROJECT_NAME)\"" >> $(RESOURCE_RC)
+	@echo "            VALUE \"LegalCopyright\", \"Copyright (C) 2024 NURBS Editor Team\"" >> $(RESOURCE_RC)
+	@echo "            VALUE \"OriginalFilename\", \"$(PROJECT_NAME).exe\"" >> $(RESOURCE_RC)
+	@echo "            VALUE \"ProductName\", \"NURBS Map Editor\"" >> $(RESOURCE_RC)
+	@echo "            VALUE \"ProductVersion\", \"$(VERSION)\"" >> $(RESOURCE_RC)
+	@echo "        END" >> $(RESOURCE_RC)
+	@echo "    END" >> $(RESOURCE_RC)
+	@echo "    BLOCK \"VarFileInfo\"" >> $(RESOURCE_RC)
+	@echo "    BEGIN" >> $(RESOURCE_RC)
+	@echo "        VALUE \"Translation\", 0x409, 1200" >> $(RESOURCE_RC)
+	@echo "    END" >> $(RESOURCE_RC)
+	@echo "END" >> $(RESOURCE_RC)
+
+# Compile resource file
+$(RESOURCE_OBJ): $(RESOURCE_RC) | $(OBJ_DIR)
+	@echo "Compiling Windows resources..."
+	$(WINDRES) -i $(RESOURCE_RC) -o $(RESOURCE_OBJ)
+
 # Release target
-$(TARGET): $(ALL_OBJECTS) | $(BIN_DIR)
-	@echo "Linking $(PROJECT_NAME)..."
+$(TARGET): $(ALL_OBJECTS) $(RESOURCE_OBJ) | $(BIN_DIR)
+	@echo "Linking $(PROJECT_NAME) for Windows..."
 	$(CC) $(LDFLAGS) -o $@ $^ $(ALL_LIBS)
-	@echo "Build complete: $@"
+	@echo "Windows build complete: $@"
 
 # Debug target
-$(DEBUG_TARGET): $(DEBUG_ALL_OBJECTS) | $(BIN_DIR)
-	@echo "Linking $(PROJECT_NAME) (debug)..."
+$(DEBUG_TARGET): $(DEBUG_ALL_OBJECTS) $(RESOURCE_OBJ) | $(BIN_DIR)
+	@echo "Linking $(PROJECT_NAME) (debug) for Windows..."
 	$(CC) $(DEBUG_LDFLAGS) -o $@ $^ $(DEBUG_ALL_LIBS)
-	@echo "Debug build complete: $@"
+	@echo "Windows debug build complete: $@"
 
 # Release object files
 $(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
-	@echo "Compiling $<..."
+	@echo "Compiling $< for Windows..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/nurbs_%.o: $(NURBS_SRC_DIR)/%.c | $(OBJ_DIR)
-	@echo "Compiling $<..."
+	@echo "Compiling $< for Windows..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # Debug object files
 $(OBJ_DIR)/debug_%.o: %.c | $(OBJ_DIR)
-	@echo "Compiling $< (debug)..."
+	@echo "Compiling $< (debug) for Windows..."
 	$(CC) $(DEBUG_ALL_CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/debug_nurbs_%.o: $(NURBS_SRC_DIR)/%.c | $(OBJ_DIR)
-	@echo "Compiling $< (debug)..."
+	@echo "Compiling $< (debug) for Windows..."
 	$(CC) $(DEBUG_ALL_CFLAGS) -c $< -o $@
 
 # Clean build files
 .PHONY: clean
 clean:
-	@echo "Cleaning build files..."
+	@echo "Cleaning Windows build files..."
 	rm -rf $(BUILD_DIR)
+	rm -f $(RESOURCE_RC)
 
-# Install target
-.PHONY: install
-install: release
-	@echo "Installing $(PROJECT_NAME)..."
-	install -d $(DESTDIR)/usr/bin
-	install -m 755 $(TARGET) $(DESTDIR)/usr/bin/$(PROJECT_NAME)
-	install -d $(DESTDIR)/usr/share/applications
-	install -m 644 $(PROJECT_NAME).desktop $(DESTDIR)/usr/share/applications/
-	install -d $(DESTDIR)/usr/share/pixmaps
-	install -m 644 icons/$(PROJECT_NAME).png $(DESTDIR)/usr/share/pixmaps/
-	@echo "Installation complete"
-
-# Uninstall target
-.PHONY: uninstall
-uninstall:
-	@echo "Uninstalling $(PROJECT_NAME)..."
-	rm -f $(DESTDIR)/usr/bin/$(PROJECT_NAME)
-	rm -f $(DESTDIR)/usr/share/applications/$(PROJECT_NAME).desktop
-	rm -f $(DESTDIR)/usr/share/pixmaps/$(PROJECT_NAME).png
-	@echo "Uninstallation complete"
-
-# Package creation
+# Package for Windows
 .PHONY: package
 package: release | $(DIST_DIR)
-	@echo "Creating package..."
-	mkdir -p $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/bin
-	mkdir -p $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/share/applications
-	mkdir -p $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/share/pixmaps
-	mkdir -p $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/doc
+	@echo "Creating Windows package..."
+	mkdir -p $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH)
 	
-	cp $(TARGET) $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/bin/
-	cp $(PROJECT_NAME).desktop $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/share/applications/
-	cp icons/$(PROJECT_NAME).png $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/share/pixmaps/
-	cp README.md $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/doc/
-	cp LICENSE $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/doc/
-	cp CHANGELOG.md $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)/doc/
+	# Copy executable
+	cp $(TARGET) $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH)/
 	
-	cd $(DIST_DIR) && tar -czf $(PROJECT_NAME)-$(VERSION).tar.gz $(PROJECT_NAME)-$(VERSION)/
-	@echo "Package created: $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION).tar.gz"
-
-# Debian package
-.PHONY: deb
-deb: release | $(DIST_DIR)
-	@echo "Creating Debian package..."
-	mkdir -p $(DIST_DIR)/debian/DEBIAN
-	mkdir -p $(DIST_DIR)/debian/usr/bin
-	mkdir -p $(DIST_DIR)/debian/usr/share/applications
-	mkdir -p $(DIST_DIR)/debian/usr/share/pixmaps
-	mkdir -p $(DIST_DIR)/debian/usr/share/doc/$(PROJECT_NAME)
+	# Copy documentation
+	cp README.md $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH)/
+	cp LICENSE $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH)/
+	cp CHANGELOG.md $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH)/
 	
-	cp $(TARGET) $(DIST_DIR)/debian/usr/bin/
-	cp $(PROJECT_NAME).desktop $(DIST_DIR)/debian/usr/share/applications/
-	cp icons/$(PROJECT_NAME).png $(DIST_DIR)/debian/usr/share/pixmaps/
-	cp README.md $(DIST_DIR)/debian/usr/share/doc/$(PROJECT_NAME)/
-	cp LICENSE $(DIST_DIR)/debian/usr/share/doc/$(PROJECT_NAME)/
-	cp CHANGELOG.md $(DIST_DIR)/debian/usr/share/doc/$(PROJECT_NAME)/
+	# Copy required DLLs
+	@echo "Copying required DLLs..."
+	-ldd $(TARGET) | grep mingw | awk '{print $$3}' | xargs -I {} cp {} $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH)/
 	
-	echo "Package: $(PROJECT_NAME)" > $(DIST_DIR)/debian/DEBIAN/control
-	echo "Version: $(VERSION)" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo "Section: graphics" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo "Priority: optional" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo "Architecture: amd64" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo "Depends: libgtk-3-0, libgl1-mesa-glx, libglu1-mesa, libglfw3" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo "Maintainer: NURBS Editor Team <contact@nurbseditor.com>" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo "Description: $(DESCRIPTION)" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo " A comprehensive NURBS-based map editor with Roblox Studio-like interface" >> $(DIST_DIR)/debian/DEBIAN/control
-	echo " and full IGES file format support for creating FPS game maps." >> $(DIST_DIR)/debian/DEBIAN/control
-	
-	dpkg-deb --build $(DIST_DIR)/debian $(DIST_DIR)/$(PROJECT_NAME)_$(VERSION)_amd64.deb
-	@echo "Debian package created: $(DIST_DIR)/$(PROJECT_NAME)_$(VERSION)_amd64.deb"
+	# Create ZIP package
+	cd $(DIST_DIR) && zip -r $(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH).zip $(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH)/
+	@echo "Windows package created: $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION)-windows-$(TARGET_ARCH).zip"
 
 # Run the application
 .PHONY: run
 run: release
-	@echo "Running $(PROJECT_NAME)..."
+	@echo "Running $(PROJECT_NAME) on Windows..."
 	$(TARGET)
 
 # Run debug version
 .PHONY: run-debug
 run-debug: debug
-	@echo "Running $(PROJECT_NAME) (debug)..."
+	@echo "Running $(PROJECT_NAME) (debug) on Windows..."
 	$(DEBUG_TARGET)
-
-# Test target
-.PHONY: test
-test: debug
-	@echo "Running tests..."
-	# Add test commands here
-	@echo "Tests completed"
 
 # Check dependencies
 .PHONY: check-deps
 check-deps:
-	@echo "Checking dependencies..."
+	@echo "Checking Windows dependencies..."
 	@echo -n "GTK+ 3.0: "
 	@pkg-config --exists gtk+-3.0 && echo "OK" || echo "MISSING"
-	@echo -n "GTK+ OpenGL Extension (pkg-config): "
-	@pkg-config --exists gtkglext-3.0 && echo "OK" || echo "MISSING"
-	@echo -n "GTK+ OpenGL Extension (header check): "
-	@test -f /usr/include/gtk-3.0/gtk/gtkgl.h && echo "OK" || echo "MISSING"
 	@echo -n "OpenGL: "
-	@pkg-config --exists gl && echo "OK" || echo "MISSING"
+	@pkg-config --exists gl && echo "OK" || (test -f $(MSYS2_PREFIX)/lib/libopengl32.a && echo "OK" || echo "MISSING")
 	@echo -n "GLU: "
-	@pkg-config --exists glu && echo "OK" || echo "MISSING"
+	@pkg-config --exists glu && echo "OK" || (test -f $(MSYS2_PREFIX)/lib/libglu32.a && echo "OK" || echo "MISSING")
 	@echo -n "GLFW3: "
-	@pkg-config --exists glfw3 && echo "OK" || echo "MISSING"
-	@echo "Dependency check complete"
+	@pkg-config --exists glfw3 && echo "OK" || (test -f $(MSYS2_PREFIX)/lib/libglfw3.a && echo "OK" || echo "MISSING")
+	@echo "Windows dependency check complete"
 
-# Install dependencies (Ubuntu/Debian)
-.PHONY: install-deps-ubuntu
-install-deps-ubuntu:
-	@echo "Installing dependencies for Ubuntu/Debian..."
-	sudo apt-get update
-	sudo apt-get install -y \
-		build-essential \
-		pkg-config \
-		libgtk-3-dev \
-		libgtkglext1-dev \
-		libgl1-mesa-dev \
-		libglu1-mesa-dev \
-		libglfw3-dev \
-		libglew-dev
-	@echo "Dependencies installed"
-
-# Install dependencies (Fedora/CentOS/RHEL)
-.PHONY: install-deps-fedora
-install-deps-fedora:
-	@echo "Installing dependencies for Fedora/CentOS/RHEL..."
-	sudo dnf install -y \
-		gcc \
-		gcc-c++ \
-		make \
-		pkgconfig \
-		gtk3-devel \
-		mesa-libGL-devel \
-		mesa-libGLU-devel \
-		glfw-devel \
-		glew-devel
-	@echo "Dependencies installed"
-
-# Install dependencies (Arch Linux)
-.PHONY: install-deps-arch
-install-deps-arch:
-	@echo "Installing dependencies for Arch Linux..."
-	sudo pacman -S --needed \
-		base-devel \
-		pkgconf \
-		gtk3 \
-		mesa \
-		glu \
-		glfw \
-		glew
-	@echo "Dependencies installed"
-
-# Format code
-.PHONY: format
-format:
-	@echo "Formatting code..."
-	find . -name "*.c" -o -name "*.h" | xargs clang-format -i
-	@echo "Code formatting complete"
+# Install dependencies (MSYS2)
+.PHONY: install-deps
+install-deps:
+	@echo "Installing dependencies for Windows (MSYS2)..."
+	pacman -S --needed --noconfirm \
+		mingw-w64-$(TARGET_ARCH)-toolchain \
+		mingw-w64-$(TARGET_ARCH)-cmake \
+		mingw-w64-$(TARGET_ARCH)-pkg-config \
+		mingw-w64-$(TARGET_ARCH)-gtk3 \
+		mingw-w64-$(TARGET_ARCH)-mesa \
+		mingw-w64-$(TARGET_ARCH)-glfw \
+		mingw-w64-$(TARGET_ARCH)-glew \
+		mingw-w64-$(TARGET_ARCH)-cppcheck
+	@echo "Windows dependencies installed"
 
 # Static analysis
 .PHONY: analyze
 analyze:
-	@echo "Running static analysis..."
-	cppcheck --enable=all --std=c11 $(EDITOR_SOURCES)
-	@echo "Static analysis complete"
-
-# Memory check
-.PHONY: memcheck
-memcheck: debug
-	@echo "Running memory check..."
-	valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all $(DEBUG_TARGET)
-
-# Generate documentation
-.PHONY: docs
-docs:
-	@echo "Generating documentation..."
-	doxygen Doxyfile
-	@echo "Documentation generated in docs/"
+	@echo "Running static analysis on Windows..."
+	-cppcheck --enable=all --std=c11 --platform=win64 $(EDITOR_SOURCES)
+	@echo "Windows static analysis complete"
 
 # Help target
 .PHONY: help
 help:
-	@echo "NURBS Map Editor Build System"
-	@echo "============================"
+	@echo "NURBS Map Editor - Windows Build System (MSYS2)"
+	@echo "==============================================="
 	@echo ""
 	@echo "Available targets:"
 	@echo "  all                 - Build release version (default)"
 	@echo "  release             - Build optimized release version"
 	@echo "  debug               - Build debug version with symbols"
 	@echo "  clean               - Remove all build files"
-	@echo "  install             - Install to system (requires sudo)"
-	@echo "  uninstall           - Remove from system (requires sudo)"
-	@echo "  package             - Create tar.gz package"
-	@echo "  deb                 - Create Debian package"
+	@echo "  package             - Create Windows ZIP package"
 	@echo "  run                 - Run release version"
 	@echo "  run-debug           - Run debug version"
-	@echo "  test                - Run tests"
 	@echo "  check-deps          - Check for required dependencies"
-	@echo "  install-deps-ubuntu - Install dependencies on Ubuntu/Debian"
-	@echo "  install-deps-fedora - Install dependencies on Fedora/CentOS/RHEL"
-	@echo "  install-deps-arch   - Install dependencies on Arch Linux"
-	@echo "  format              - Format source code"
+	@echo "  install-deps        - Install dependencies via MSYS2"
 	@echo "  analyze             - Run static analysis"
-	@echo "  memcheck            - Run memory leak check"
-	@echo "  docs                - Generate documentation"
 	@echo "  help                - Show this help"
 	@echo ""
+	@echo "Environment variables:"
+	@echo "  TARGET_ARCH         - Target architecture (x86_64 or i686)"
+	@echo ""
 	@echo "Project: $(PROJECT_NAME) v$(VERSION)"
-	@echo "Description: $(DESCRIPTION)"
+	@echo "Target Architecture: $(TARGET_ARCH)"
+	@echo "MSYS2 Prefix: $(MSYS2_PREFIX)"
 
 # Dependencies
 -include $(ALL_OBJECTS:.o=.d)
