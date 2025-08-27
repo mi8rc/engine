@@ -2,11 +2,29 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 // Define M_PI if not available (MSYS2/Windows compatibility)
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// Static variable to track GLEW initialization
+static bool glew_initialized = false;
+
+// Helper function to ensure GLEW is initialized
+static void ensure_glew_init() {
+#if defined(WIN32) || defined(_WIN32)
+    if (!glew_initialized) {
+        GLenum err = glewInit();
+        if (err != GLEW_OK) {
+            fprintf(stderr, "GLEW initialization failed: %s\n", glewGetErrorString(err));
+            return;
+        }
+        glew_initialized = true;
+    }
+#endif
+}
 
 // Matrix operations (4x4 matrices in column-major order)
 void matrix_identity(float *matrix) {
@@ -111,6 +129,9 @@ void matrix_multiply(float *result, float *a, float *b) {
 
 // Shader management
 unsigned int compile_shader(unsigned int type, const char *source) {
+    // Initialize GLEW if needed (Windows only)
+    ensure_glew_init();
+    
     unsigned int shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, NULL);
     glCompileShader(shader);

@@ -79,7 +79,7 @@ ifeq ($(IS_WINDOWS),1)
     # Disable glibc fortify functions that don't exist on Windows
     CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
     CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
-    # Add Windows-specific defines
+    # Use GLEW_STATIC for Windows to avoid DLL dependencies
     CFLAGS += -DGLEW_STATIC
     CXXFLAGS += -DGLEW_STATIC
 endif
