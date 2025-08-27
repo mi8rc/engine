@@ -15,7 +15,7 @@ fi
 
 # Set Windows build environment
 export BUILD_MODE=windows
-export CFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DGLEW_STATIC"
+export CFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
 export LDFLAGS="-Wl,--enable-stdcall-fixup -Wl,--disable-auto-import"
 
 echo "Build Mode: $BUILD_MODE"

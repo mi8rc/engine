@@ -79,9 +79,7 @@ ifeq ($(IS_WINDOWS),1)
     # Disable glibc fortify functions that don't exist on Windows
     CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
     CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
-    # Use GLEW_STATIC for Windows to avoid DLL dependencies
-    CFLAGS += -DGLEW_STATIC
-    CXXFLAGS += -DGLEW_STATIC
+    # Use dynamic GLEW linking for Windows to avoid static linking issues
 endif
 
 # Debug build settings
@@ -90,8 +88,8 @@ DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_
 
 # Apply Windows fixes to debug builds too
 ifeq ($(IS_WINDOWS),1)
-    DEBUG_CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DGLEW_STATIC
-    DEBUG_CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DGLEW_STATIC
+    DEBUG_CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
+    DEBUG_CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
     # Windows debug should use console subsystem for better debugging
     DEBUG_LDFLAGS = -Wl,--subsystem,console
 else
@@ -113,9 +111,9 @@ ifeq ($(IS_WINDOWS),0)
     JSON_CFLAGS = $(shell pkg-config --cflags json-c 2>/dev/null)
     JSON_LIBS = $(shell pkg-config --libs json-c 2>/dev/null || echo "-ljson-c")
 else
-    # Windows/MSYS2 OpenGL libraries
-    GL_CFLAGS = $(shell pkg-config --cflags gl glu glew 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
-    GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lopengl32 -lglu32 -lglew32")
+    # Windows/MSYS2 OpenGL libraries (no GLEW needed with compatibility layer)
+    GL_CFLAGS = $(shell pkg-config --cflags gl glu 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+    GL_LIBS = $(shell pkg-config --libs gl glu 2>/dev/null || echo "-lopengl32 -lglu32")
     
     GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
     GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3")

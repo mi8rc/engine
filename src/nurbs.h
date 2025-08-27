@@ -11,10 +11,8 @@
     #include <GL/gl.h>
     #include <GL/glu.h>
 #elif defined(WIN32) || defined(_WIN32)
-    #include <windows.h>
-    #include <GL/glew.h>
-    #include <GL/gl.h>
-    #include <GL/glu.h>
+    // Use compatibility layer instead of GLEW for Windows builds
+    #include "../c_map_editor/gl_compat.h"
 #else
     #include <OpenGL/gl.h>
     #include <OpenGL/glu.h>

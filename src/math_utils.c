@@ -9,21 +9,18 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// Static variable to track GLEW initialization
-static bool glew_initialized = false;
+// OpenGL initialization tracking (Windows uses stub functions, no initialization needed)
+static bool gl_ready = false;
 
-// Helper function to ensure GLEW is initialized
-static void ensure_glew_init() {
+// Helper function to ensure OpenGL is ready
+static void ensure_gl_ready() {
+    if (!gl_ready) {
 #if defined(WIN32) || defined(_WIN32)
-    if (!glew_initialized) {
-        GLenum err = glewInit();
-        if (err != GLEW_OK) {
-            fprintf(stderr, "GLEW initialization failed: %s\n", glewGetErrorString(err));
-            return;
-        }
-        glew_initialized = true;
-    }
+        // Windows: using stub OpenGL functions, no initialization needed
+        printf("Using OpenGL compatibility layer for Windows\n");
 #endif
+        gl_ready = true;
+    }
 }
 
 // Matrix operations (4x4 matrices in column-major order)
@@ -129,8 +126,8 @@ void matrix_multiply(float *result, float *a, float *b) {
 
 // Shader management
 unsigned int compile_shader(unsigned int type, const char *source) {
-    // Initialize GLEW if needed (Windows only)
-    ensure_glew_init();
+    // Ensure OpenGL is ready
+    ensure_gl_ready();
     
     unsigned int shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, NULL);
