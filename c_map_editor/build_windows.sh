@@ -15,8 +15,8 @@ fi
 
 # Set Windows build environment
 export BUILD_MODE=windows
-export CFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D__USE_MINGW_ANSI_STDIO=1 -DGLEW_STATIC -DWIN32"
-export LDFLAGS="-Wl,--enable-stdcall-fixup -Wl,--disable-auto-import -static-libgcc"
+export CFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DGLEW_STATIC"
+export LDFLAGS="-Wl,--enable-stdcall-fixup -Wl,--disable-auto-import"
 
 echo "Build Mode: $BUILD_MODE"
 echo "CFLAGS: $CFLAGS"

@@ -13,7 +13,6 @@
  * - Save/Load project files
  */
 
-#include "win_compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -3,7 +3,6 @@
  * A Roblox Studio-like editor for NURBS-based FPS games with full IGES support
  */
 
-#include "win_compat.h"
 #include "editor.h"
 #include "iges_loader.h"
 #include "nurbs_primitives.h"

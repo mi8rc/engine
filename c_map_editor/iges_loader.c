@@ -3,10 +3,21 @@
  * Full IGES file format support for NURBS Map Editor
  */
 
-#include "win_compat.h"
 #include "iges_loader.h"
 #include <string.h>
 #include <errno.h>
+
+// Fix for cross-compilation ctype issue on Windows
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__MINGW64__)
+#include <ctype.h>
+// Only override isspace if we're having cross-compilation issues
+#ifdef __CTYPE_B_LOC_DETECTED
+#undef isspace
+#define isspace(c) ((c) == ' ' || (c) == '\t' || (c) == '\n' || (c) == '\r' || (c) == '\f' || (c) == '\v')
+#endif
+#else
+#include <ctype.h>
+#endif
 
 // Global error tracking
 IgesError iges_last_error = IGES_ERROR_NONE;

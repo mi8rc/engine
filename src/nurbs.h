@@ -11,13 +11,7 @@
     #include <GL/gl.h>
     #include <GL/glu.h>
 #elif defined(WIN32) || defined(_WIN32)
-    #ifndef WIN32_LEAN_AND_MEAN
-    #define WIN32_LEAN_AND_MEAN
-    #endif
     #include <windows.h>
-    #ifndef GLEW_STATIC
-    #define GLEW_STATIC
-    #endif
     #include <GL/glew.h>
     #include <GL/gl.h>
     #include <GL/glu.h>

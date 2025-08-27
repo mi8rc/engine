@@ -77,11 +77,11 @@ LDFLAGS = $(PLATFORM_LDFLAGS)
 # Windows-specific fixes for glibc compatibility
 ifeq ($(IS_WINDOWS),1)
     # Disable glibc fortify functions that don't exist on Windows
-    CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D__USE_MINGW_ANSI_STDIO=1
-    CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D__USE_MINGW_ANSI_STDIO=1
+    CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
+    CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
     # Add Windows-specific defines
-    CFLAGS += -DGLEW_STATIC -DWIN32 -D_WIN32_WINNT=0x0601
-    CXXFLAGS += -DGLEW_STATIC -DWIN32 -D_WIN32_WINNT=0x0601
+    CFLAGS += -DGLEW_STATIC
+    CXXFLAGS += -DGLEW_STATIC
 endif
 
 # Debug build settings
@@ -90,8 +90,8 @@ DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_
 
 # Apply Windows fixes to debug builds too
 ifeq ($(IS_WINDOWS),1)
-    DEBUG_CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D__USE_MINGW_ANSI_STDIO=1 -DGLEW_STATIC -DWIN32 -D_WIN32_WINNT=0x0601
-    DEBUG_CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D__USE_MINGW_ANSI_STDIO=1 -DGLEW_STATIC -DWIN32 -D_WIN32_WINNT=0x0601
+    DEBUG_CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DGLEW_STATIC
+    DEBUG_CXXFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DGLEW_STATIC
     # Windows debug should use console subsystem for better debugging
     DEBUG_LDFLAGS = -Wl,--subsystem,console
 else
@@ -113,9 +113,9 @@ ifeq ($(IS_WINDOWS),0)
     JSON_CFLAGS = $(shell pkg-config --cflags json-c 2>/dev/null)
     JSON_LIBS = $(shell pkg-config --libs json-c 2>/dev/null || echo "-ljson-c")
 else
-    # Windows/MSYS2 OpenGL libraries - use static GLEW to avoid pointer issues
+    # Windows/MSYS2 OpenGL libraries
     GL_CFLAGS = $(shell pkg-config --cflags gl glu glew 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
-    GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lopengl32 -lglu32 -lglew32 -static")
+    GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lopengl32 -lglu32 -lglew32")
     
     GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
     GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3")
@@ -146,12 +146,12 @@ ifeq ($(IS_WINDOWS),1)
     GTK_SYSTEM_LIBS := $(filter -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid,$(GTK_LIBS))
     GTK_CLEAN_LIBS := $(filter-out $(GTK_SYSTEM_LIBS),$(GTK_LIBS))
     
-    # Use a careful library order for Windows with additional system libs
-    ALL_LIBS = $(GTK_CLEAN_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS) -lssp
-    DEBUG_ALL_LIBS = $(GTK_CLEAN_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS) -lssp
+    # Use a careful library order for Windows - GTK libs first, then others
+    ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+    DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
     
     # Windows-specific linker flags for better error reporting and compatibility
-    WINDOWS_LINK_FLAGS = -Wl,--enable-stdcall-fixup -Wl,--disable-auto-import -static-libgcc
+    WINDOWS_LINK_FLAGS = -Wl,--enable-stdcall-fixup -Wl,--disable-auto-import
 else
     # Standard Unix linking
     ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
