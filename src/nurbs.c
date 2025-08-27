@@ -2,6 +2,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <stddef.h>
 
 // Define M_PI if not available (MSYS2/Windows compatibility)
 #ifndef M_PI

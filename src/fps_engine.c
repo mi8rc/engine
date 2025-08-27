@@ -475,6 +475,19 @@ void fps_engine_handle_input(FPSEngine *engine) {
     }
 }
 
+// Simple world update function - can be overridden by game code
+void world_update(World *world, float delta_time) {
+    // Update animations or object states here
+    // For now, just rotate some spheres
+    for (int i = 0; i < world->num_objects; i++) {
+        GameObject *obj = &world->objects[i];
+        if (strstr(obj->name, "Sphere") != NULL) {
+            obj->rotation.y += delta_time * 30.0f; // Rotate 30 degrees per second
+            if (obj->rotation.y > 360.0f) obj->rotation.y -= 360.0f;
+        }
+    }
+}
+
 void fps_engine_update(FPSEngine *engine) {
     world_update(&engine->world, engine->input.delta_time);
 }

@@ -2,8 +2,6 @@
 #define EDITOR_H
 
 #include <gtk/gtk.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
 #include <stdbool.h>
 #include "../src/nurbs.h"
 

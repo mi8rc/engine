@@ -14,67 +14,142 @@ OBJ_DIR = $(BUILD_DIR)/obj
 BIN_DIR = $(BUILD_DIR)/bin
 DIST_DIR = $(BUILD_DIR)/dist
 
-# Windows-specific settings
-EXE_SUFFIX = .exe
-TARGET_ARCH ?= x86_64
-MSYS2_PREFIX = /mingw64
-ifeq ($(TARGET_ARCH),i686)
-    MSYS2_PREFIX = /mingw32
+# Detect platform
+UNAME_S := $(shell uname -s)
+BUILD_MODE ?= auto
+
+# Enhanced platform detection with build mode support
+# Usage: make BUILD_MODE=windows (to force Windows build)
+#        make BUILD_MODE=linux  (to force Linux build)
+#        make                   (auto-detect)
+
+# Set IS_WINDOWS based on platform detection and build mode
+ifeq ($(BUILD_MODE),windows)
+    IS_WINDOWS = 1
+    DETECTED_PLATFORM = Windows (forced)
+else ifeq ($(BUILD_MODE),linux)
+    IS_WINDOWS = 0
+    DETECTED_PLATFORM = Linux (forced)
+else ifneq ($(findstring MINGW,$(UNAME_S)),)
+    IS_WINDOWS = 1
+    DETECTED_PLATFORM = Windows/MSYS2 ($(UNAME_S))
+else ifeq ($(OS),Windows_NT)
+    IS_WINDOWS = 1
+    DETECTED_PLATFORM = Windows ($(OS))
+else
+    IS_WINDOWS = 0
+    DETECTED_PLATFORM = Unix-like ($(UNAME_S))
 endif
 
-# Compiler settings for Windows
+# Platform-specific settings based on IS_WINDOWS
+ifeq ($(IS_WINDOWS),1)
+    # Windows/MSYS2 settings
+    EXE_SUFFIX = .exe
+    TARGET_ARCH ?= x86_64
+    MSYS2_PREFIX = /mingw64
+    ifeq ($(TARGET_ARCH),i686)
+        MSYS2_PREFIX = /mingw32
+    endif
+    PLATFORM_CFLAGS = -DWIN32 -D_WIN32_WINNT=0x0601
+    PLATFORM_LDFLAGS = -Wl,--subsystem,console
+    WINDRES = windres
+    
+    # Windows linking strategy: use minimal additional libs since GTK provides most
+    WIN_LIBS = 
+    LINK_STRATEGY = windows_safe
+else
+    # Linux/Unix settings  
+    EXE_SUFFIX = 
+    PLATFORM_CFLAGS = -DLINUX
+    PLATFORM_LDFLAGS = 
+    WINDRES = 
+    WIN_LIBS = 
+    LINK_STRATEGY = unix_standard
+endif
+
+# Compiler settings
 CC = gcc
 CXX = g++
-WINDRES = windres
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2 -g -DWIN32 -D_WIN32_WINNT=0x0601
-CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -O2 -g -DWIN32 -D_WIN32_WINNT=0x0601
-LDFLAGS = -Wl,--subsystem,windows -mwindows
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2 -g $(PLATFORM_CFLAGS)
+CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -O2 -g $(PLATFORM_CFLAGS)
+LDFLAGS = $(PLATFORM_LDFLAGS)
 
 # Debug build settings
-DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -DWIN32 -D_WIN32_WINNT=0x0601
-DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -DWIN32 -D_WIN32_WINNT=0x0601
-DEBUG_LDFLAGS = -Wl,--subsystem,console
+DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
+DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
+ifeq ($(IS_WINDOWS),0)
+    DEBUG_LDFLAGS = $(PLATFORM_LDFLAGS)
+else
+    # Windows debug should use console subsystem for better debugging
+    DEBUG_LDFLAGS = -Wl,--subsystem,console
+endif
 
-# Package dependencies (Windows/MSYS2)
-GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0)
-GTK_LIBS = $(shell pkg-config --libs gtk+-3.0)
+# Package dependencies
+GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0 2>/dev/null)
+GTK_LIBS = $(shell pkg-config --libs gtk+-3.0 2>/dev/null)
 
-GL_CFLAGS = $(shell pkg-config --cflags gl glu 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
-GL_LIBS = $(shell pkg-config --libs gl glu 2>/dev/null || echo "-lopengl32 -lglu32")
-
-GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
-GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3 -lgdi32")
-
-# Windows-specific libraries
-WIN_LIBS = -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32
+ifeq ($(IS_WINDOWS),0)
+    # Linux OpenGL libraries
+    GL_CFLAGS = $(shell pkg-config --cflags gl glu glew 2>/dev/null)
+    GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lGL -lGLU -lGLEW")
+    
+    GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null)
+    GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw")
+    
+    JSON_CFLAGS = $(shell pkg-config --cflags json-c 2>/dev/null)
+    JSON_LIBS = $(shell pkg-config --libs json-c 2>/dev/null || echo "-ljson-c")
+else
+    # Windows/MSYS2 OpenGL libraries
+    GL_CFLAGS = $(shell pkg-config --cflags gl glu glew 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+    GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lopengl32 -lglu32 -lglew32")
+    
+    GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+    GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3")
+    
+    JSON_CFLAGS = $(shell pkg-config --cflags json-c 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+    JSON_LIBS = $(shell pkg-config --libs json-c 2>/dev/null || echo "-ljson-c")
+endif
 
 # Additional libraries
-MATH_LIBS = -lm
-PTHREAD_LIBS = -lpthread
+ifeq ($(IS_WINDOWS),0)
+    MATH_LIBS = -lm
+    PTHREAD_LIBS = -lpthread
+else
+    # Windows/MinGW includes math functions in standard library
+    MATH_LIBS = 
+    # Windows doesn't need explicit pthread linking with mingw
+    PTHREAD_LIBS = 
+endif
 
 # Combined flags
-ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) $(JSON_CFLAGS) -I$(NURBS_SRC_DIR)
 
-# Debug flags
-DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+# Windows-specific linking strategy
+ifeq ($(IS_WINDOWS),1)
+    # For Windows, create a filtered library list to avoid duplicates
+    # Extract unique libraries from GTK to avoid conflicts
+    GTK_SYSTEM_LIBS := $(filter -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid,$(GTK_LIBS))
+    GTK_CLEAN_LIBS := $(filter-out $(GTK_SYSTEM_LIBS),$(GTK_LIBS))
+    
+    # Use a careful library order for Windows
+    ALL_LIBS = $(GTK_CLEAN_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+    DEBUG_ALL_LIBS = $(GTK_CLEAN_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+    
+    # Windows-specific linker flags for better error reporting
+    WINDOWS_LINK_FLAGS = -Wl,--enable-stdcall-fixup -Wl,--disable-auto-import
+else
+    # Standard Unix linking
+    ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+    DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+    WINDOWS_LINK_FLAGS = 
+endif
 
 # Source files
 EDITOR_SOURCES = \
 	main.c \
 	editor.c \
 	iges_loader.c \
-	nurbs_primitives.c \
-	viewport.c \
-	scene_hierarchy.c \
-	properties_panel.c \
-	file_operations.c \
-	undo_redo.c \
-	camera_controls.c \
-	selection_system.c \
-	material_editor.c \
-	lighting_system.c
+	nurbs_primitives.c
 
 # NURBS library sources
 NURBS_SOURCES = \
@@ -165,20 +240,41 @@ $(RESOURCE_RC):
 
 # Compile resource file
 $(RESOURCE_OBJ): $(RESOURCE_RC) | $(OBJ_DIR)
+ifeq ($(IS_WINDOWS),0)
+	@echo "Skipping Windows resources on Linux..."
+	@touch $(RESOURCE_OBJ)
+else
 	@echo "Compiling Windows resources..."
 	$(WINDRES) -i $(RESOURCE_RC) -o $(RESOURCE_OBJ)
+endif
 
 # Release target
 $(TARGET): $(ALL_OBJECTS) $(RESOURCE_OBJ) | $(BIN_DIR)
-	@echo "Linking $(PROJECT_NAME) for Windows..."
-	$(CC) $(LDFLAGS) -o $@ $^ $(ALL_LIBS)
+ifeq ($(IS_WINDOWS),1)
+	@echo "Linking $(PROJECT_NAME) for Windows using enhanced strategy..."
+	@echo "Platform: $(DETECTED_PLATFORM)"
+	@echo "Libraries: $(ALL_LIBS)"
+	$(CC) $(LDFLAGS) $(WINDOWS_LINK_FLAGS) -o $@ $^ $(ALL_LIBS)
 	@echo "Windows build complete: $@"
+else
+	@echo "Linking $(PROJECT_NAME) for $(DETECTED_PLATFORM)..."
+	$(CC) $(LDFLAGS) -o $@ $^ $(ALL_LIBS)
+	@echo "Build complete: $@"
+endif
 
 # Debug target
 $(DEBUG_TARGET): $(DEBUG_ALL_OBJECTS) $(RESOURCE_OBJ) | $(BIN_DIR)
-	@echo "Linking $(PROJECT_NAME) (debug) for Windows..."
-	$(CC) $(DEBUG_LDFLAGS) -o $@ $^ $(DEBUG_ALL_LIBS)
+ifeq ($(IS_WINDOWS),1)
+	@echo "Linking $(PROJECT_NAME) (debug) for Windows using enhanced strategy..."
+	@echo "Platform: $(DETECTED_PLATFORM)"
+	@echo "Debug Libraries: $(DEBUG_ALL_LIBS)"
+	$(CC) $(DEBUG_LDFLAGS) $(WINDOWS_LINK_FLAGS) -o $@ $^ $(DEBUG_ALL_LIBS)
 	@echo "Windows debug build complete: $@"
+else
+	@echo "Linking $(PROJECT_NAME) (debug) for $(DETECTED_PLATFORM)..."
+	$(CC) $(DEBUG_LDFLAGS) -o $@ $^ $(DEBUG_ALL_LIBS)
+	@echo "Debug build complete: $@"
+endif
 
 # Release object files
 $(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
@@ -275,31 +371,101 @@ analyze:
 	-cppcheck --enable=all --std=c11 --platform=win64 $(EDITOR_SOURCES)
 	@echo "Windows static analysis complete"
 
+# Debug platform detection
+.PHONY: debug-platform
+debug-platform:
+	@echo "=== Platform Detection ==="
+	@echo "UNAME_S: $(UNAME_S)"
+	@echo "OS: $(OS)"
+	@echo "BUILD_MODE: $(BUILD_MODE)"
+	@echo "IS_WINDOWS: $(IS_WINDOWS)"
+	@echo "DETECTED_PLATFORM: $(DETECTED_PLATFORM)"
+	@echo "EXE_SUFFIX: $(EXE_SUFFIX)"
+	@echo "LINK_STRATEGY: $(LINK_STRATEGY)"
+	@echo ""
+	@echo "=== Compilation Settings ==="
+	@echo "PLATFORM_CFLAGS: $(PLATFORM_CFLAGS)"
+	@echo "PLATFORM_LDFLAGS: $(PLATFORM_LDFLAGS)"
+	@echo "WINDOWS_LINK_FLAGS: $(WINDOWS_LINK_FLAGS)"
+	@echo ""
+	@echo "=== Libraries ==="
+	@echo "GTK_LIBS: $(GTK_LIBS)"
+	@echo "GTK_CLEAN_LIBS: $(GTK_CLEAN_LIBS)"
+	@echo "GL_LIBS: $(GL_LIBS)"
+	@echo "ALL_LIBS: $(ALL_LIBS)"
+
+# Test Windows linking incrementally
+.PHONY: test-link-windows
+test-link-windows: $(ALL_OBJECTS) | $(BIN_DIR)
+	@echo "Testing Windows linking incrementally..."
+	@echo "Step 1: Basic GTK linking..."
+	-$(CC) $(LDFLAGS) -o build/bin/test_gtk.exe $^ $(GTK_CLEAN_LIBS)
+	@echo "Step 2: Adding OpenGL..."
+	-$(CC) $(LDFLAGS) -o build/bin/test_gl.exe $^ $(GTK_CLEAN_LIBS) $(GL_LIBS)
+	@echo "Step 3: Adding GLFW..."
+	-$(CC) $(LDFLAGS) -o build/bin/test_glfw.exe $^ $(GTK_CLEAN_LIBS) $(GL_LIBS) $(GLFW_LIBS)
+	@echo "Step 4: Full linking..."
+	-$(CC) $(LDFLAGS) $(WINDOWS_LINK_FLAGS) -o build/bin/test_full.exe $^ $(ALL_LIBS)
+	@echo "Incremental linking test complete"
+
+# Test minimal linking
+.PHONY: test-link
+test-link: $(ALL_OBJECTS) | $(BIN_DIR)
+	@echo "Testing minimal linking..."
+	$(CC) $(LDFLAGS) -o build/bin/test_link$(EXE_SUFFIX) $^ -lkernel32 -luser32
+	@echo "Minimal linking test passed"
+
+# Force Windows build mode
+.PHONY: windows
+windows:
+	@echo "Building for Windows (forced mode)..."
+	$(MAKE) BUILD_MODE=windows release
+
+# Force Linux build mode  
+.PHONY: linux
+linux:
+	@echo "Building for Linux (forced mode)..."
+	$(MAKE) BUILD_MODE=linux release
+
 # Help target
 .PHONY: help
 help:
-	@echo "NURBS Map Editor - Windows Build System (MSYS2)"
-	@echo "==============================================="
+	@echo "NURBS Map Editor - Enhanced Cross-Platform Build System"
+	@echo "======================================================"
 	@echo ""
-	@echo "Available targets:"
+	@echo "Current Platform: $(DETECTED_PLATFORM)"
+	@echo "Build Mode: $(BUILD_MODE)"
+	@echo ""
+	@echo "Build Targets:"
 	@echo "  all                 - Build release version (default)"
 	@echo "  release             - Build optimized release version"
 	@echo "  debug               - Build debug version with symbols"
+	@echo "  windows             - Force Windows build (make BUILD_MODE=windows)"
+	@echo "  linux               - Force Linux build (make BUILD_MODE=linux)"
 	@echo "  clean               - Remove all build files"
-	@echo "  package             - Create Windows ZIP package"
+	@echo ""
+	@echo "Debug & Testing:"
+	@echo "  debug-platform      - Show platform detection info"
+	@echo "  test-link           - Test minimal linking"
+	@echo "  test-link-windows   - Test Windows linking incrementally"
+	@echo "  check-deps          - Check for required dependencies"
+	@echo ""
+	@echo "Runtime:"
 	@echo "  run                 - Run release version"
 	@echo "  run-debug           - Run debug version"
-	@echo "  check-deps          - Check for required dependencies"
-	@echo "  install-deps        - Install dependencies via MSYS2"
+	@echo ""
+	@echo "Packaging & Analysis:"
+	@echo "  package             - Create distribution package"
+	@echo "  install-deps        - Install dependencies"
 	@echo "  analyze             - Run static analysis"
 	@echo "  help                - Show this help"
 	@echo ""
-	@echo "Environment variables:"
-	@echo "  TARGET_ARCH         - Target architecture (x86_64 or i686)"
+	@echo "Build Modes:"
+	@echo "  make                - Auto-detect platform"
+	@echo "  make BUILD_MODE=windows - Force Windows/MSYS2 build"
+	@echo "  make BUILD_MODE=linux   - Force Linux/Unix build"
 	@echo ""
 	@echo "Project: $(PROJECT_NAME) v$(VERSION)"
-	@echo "Target Architecture: $(TARGET_ARCH)"
-	@echo "MSYS2 Prefix: $(MSYS2_PREFIX)"
 
 # Dependencies
 -include $(ALL_OBJECTS:.o=.d)

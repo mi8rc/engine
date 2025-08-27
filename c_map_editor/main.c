@@ -17,8 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gtk/gtk.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
 #ifdef HAVE_GTKGLEXT
 #include <gtk/gtkgl.h>
 #else

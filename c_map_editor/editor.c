@@ -989,17 +989,3 @@ void editor_new_scene(MapEditor *editor) {
     printf("New scene created\n");
 }
 
-void free_nurbs_surface(NURBSSurface *surface) {
-    if (surface) {
-        free(surface);
-    }
-}
-
-void free_tessellated_surface(TessellatedSurface *surface) {
-    if (surface) {
-        if (surface->points) {
-            free(surface->points);
-        }
-        free(surface);
-    }
-}

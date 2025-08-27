@@ -4,11 +4,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#ifdef _WIN32
+
+// OpenGL headers - include GLEW first to avoid conflicts
+#ifdef LINUX
+    #include <GL/glew.h>
+    #include <GL/gl.h>
+    #include <GL/glu.h>
+#elif defined(WIN32) || defined(_WIN32)
     #include <windows.h>
+    #include <GL/glew.h>
+    #include <GL/gl.h>
+    #include <GL/glu.h>
+#else
+    #include <OpenGL/gl.h>
+    #include <OpenGL/glu.h>
+    #include <OpenGL/glext.h>
 #endif
-#include <GL/gl.h>
-#include <GL/glu.h>
 
 // OpenGL 3.0+ compatibility for NURBS functions
 #ifndef GL_VERSION_3_0
