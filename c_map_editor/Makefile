@@ -34,7 +34,7 @@ else ifeq ($(OS),Windows_NT)
         MSYS2_PREFIX = /mingw32
     endif
     PLATFORM_CFLAGS = -DWIN32 -D_WIN32_WINNT=0x0601
-    PLATFORM_LDFLAGS = -Wl,--subsystem,windows -mwindows
+    PLATFORM_LDFLAGS = -Wl,--subsystem,console
     WIN_LIBS = -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32
     WINDRES = windres
 else
@@ -56,7 +56,12 @@ LDFLAGS = $(PLATFORM_LDFLAGS)
 # Debug build settings
 DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
 DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
-DEBUG_LDFLAGS = $(PLATFORM_LDFLAGS)
+ifeq ($(UNAME_S),Linux)
+    DEBUG_LDFLAGS = $(PLATFORM_LDFLAGS)
+else
+    # Windows debug should use console subsystem for better debugging
+    DEBUG_LDFLAGS = -Wl,--subsystem,console
+endif
 
 # Package dependencies
 GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0 2>/dev/null)
@@ -78,7 +83,7 @@ else
     GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lopengl32 -lglu32 -lglew32")
     
     GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
-    GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3 -lgdi32")
+    GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3")
     
     JSON_CFLAGS = $(shell pkg-config --cflags json-c 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
     JSON_LIBS = $(shell pkg-config --libs json-c 2>/dev/null || echo "-ljson-c")
@@ -86,15 +91,30 @@ endif
 
 # Additional libraries
 MATH_LIBS = -lm
-PTHREAD_LIBS = -lpthread
+ifeq ($(UNAME_S),Linux)
+    PTHREAD_LIBS = -lpthread
+else
+    # Windows doesn't need explicit pthread linking with mingw
+    PTHREAD_LIBS = 
+endif
 
 # Combined flags
 ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) $(JSON_CFLAGS) -I$(NURBS_SRC_DIR)
-ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+# Order libraries properly for Windows linking
+ifeq ($(UNAME_S),Linux)
+    ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+else
+    # Windows library order matters more - put system libs last
+    ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS) $(WIN_LIBS)
+endif
 
 # Debug flags
 DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) $(JSON_CFLAGS) -I$(NURBS_SRC_DIR)
-DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+ifeq ($(UNAME_S),Linux)
+    DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+else
+    DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS) $(WIN_LIBS)
+endif
 
 # Source files
 EDITOR_SOURCES = \
@@ -203,6 +223,7 @@ endif
 # Release target
 $(TARGET): $(ALL_OBJECTS) $(RESOURCE_OBJ) | $(BIN_DIR)
 	@echo "Linking $(PROJECT_NAME) for Windows..."
+	@echo "Libraries: $(ALL_LIBS)"
 	$(CC) $(LDFLAGS) -o $@ $^ $(ALL_LIBS)
 	@echo "Windows build complete: $@"
 
@@ -306,6 +327,13 @@ analyze:
 	@echo "Running static analysis on Windows..."
 	-cppcheck --enable=all --std=c11 --platform=win64 $(EDITOR_SOURCES)
 	@echo "Windows static analysis complete"
+
+# Test linking with minimal libraries
+.PHONY: test-link
+test-link: $(ALL_OBJECTS) | $(BIN_DIR)
+	@echo "Testing minimal linking..."
+	$(CC) $(LDFLAGS) -o build/bin/test_link.exe $^ -lkernel32 -luser32
+	@echo "Minimal linking test passed"
 
 # Help target
 .PHONY: help
