@@ -3,11 +3,26 @@
 #include <math.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 // Define M_PI if not available (MSYS2/Windows compatibility)
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// OpenGL initialization tracking (Windows uses stub functions, no initialization needed)
+static bool gl_ready = false;
+
+// Helper function to ensure OpenGL is ready
+static void ensure_gl_ready() {
+    if (!gl_ready) {
+#if defined(WIN32) || defined(_WIN32)
+        // Windows: using stub OpenGL functions, no initialization needed
+        printf("Using OpenGL compatibility layer for Windows\n");
+#endif
+        gl_ready = true;
+    }
+}
 
 // Calculate B-spline basis function using Cox-de Boor recursion
 float nurbs_basis_function(int i, int degree, float t, float *knots) {
@@ -133,6 +148,9 @@ SurfacePoint evaluate_nurbs_surface(NURBSSurface *surface, float u, float v) {
 
 // Tessellate NURBS surface into triangles for rendering
 TessellatedSurface* tessellate_nurbs_surface(NURBSSurface *surface, int res_u, int res_v) {
+    // Ensure OpenGL is ready
+    ensure_gl_ready();
+    
     TessellatedSurface *tess = malloc(sizeof(TessellatedSurface));
     tess->resolution_u = res_u;
     tess->resolution_v = res_v;

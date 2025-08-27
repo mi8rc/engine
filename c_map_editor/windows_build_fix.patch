@@ -1,0 +1,31 @@
+# Windows Build Fix Patch for NURBS Map Editor
+# Apply this patch in your MSYS2/MinGW environment to fix cross-compilation issues
+
+# The issues were:
+# 1. glibc-specific fortify functions (__printf_chk, __fprintf_chk, etc.)
+# 2. glibc ctype function (__ctype_b_loc)  
+# 3. GLEW function pointer issues
+# 4. stderr symbol conflicts
+
+# SOLUTION SUMMARY:
+# All the fixes have been implemented in the updated Makefile and source files.
+# 
+# Key changes made:
+# 1. Added -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 to disable glibc fortify functions
+# 2. Added -D__USE_MINGW_ANSI_STDIO=1 for proper stdio handling
+# 3. Added -DGLEW_STATIC for static GLEW linking
+# 4. Added win_compat.h for cross-platform compatibility
+# 5. Updated all source files to include the compatibility header
+# 6. Fixed OpenGL header inclusion order
+
+# TO APPLY THE FIX:
+# 1. Ensure you're in an MSYS2/MinGW64 environment
+# 2. Make sure you have the required dependencies installed:
+#    pacman -S mingw-w64-x86_64-gtk3 mingw-w64-x86_64-glew mingw-w64-x86_64-glfw mingw-w64-x86_64-json-c
+# 3. Run the build with Windows mode forced:
+#    make BUILD_MODE=windows clean
+#    make BUILD_MODE=windows
+
+# If you still get linking errors, try adding these additional flags to your environment:
+# export CFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D__USE_MINGW_ANSI_STDIO=1 -DGLEW_STATIC"
+# export LDFLAGS="-Wl,--enable-stdcall-fixup -Wl,--disable-auto-import"

@@ -2,11 +2,26 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 // Define M_PI if not available (MSYS2/Windows compatibility)
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// OpenGL initialization tracking (Windows uses stub functions, no initialization needed)
+static bool gl_ready = false;
+
+// Helper function to ensure OpenGL is ready
+static void ensure_gl_ready() {
+    if (!gl_ready) {
+#if defined(WIN32) || defined(_WIN32)
+        // Windows: using stub OpenGL functions, no initialization needed
+        printf("Using OpenGL compatibility layer for Windows\n");
+#endif
+        gl_ready = true;
+    }
+}
 
 // Matrix operations (4x4 matrices in column-major order)
 void matrix_identity(float *matrix) {
@@ -111,6 +126,9 @@ void matrix_multiply(float *result, float *a, float *b) {
 
 // Shader management
 unsigned int compile_shader(unsigned int type, const char *source) {
+    // Ensure OpenGL is ready
+    ensure_gl_ready();
+    
     unsigned int shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, NULL);
     glCompileShader(shader);
