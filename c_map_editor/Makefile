@@ -14,67 +14,94 @@ OBJ_DIR = $(BUILD_DIR)/obj
 BIN_DIR = $(BUILD_DIR)/bin
 DIST_DIR = $(BUILD_DIR)/dist
 
-# Windows-specific settings
-EXE_SUFFIX = .exe
-TARGET_ARCH ?= x86_64
-MSYS2_PREFIX = /mingw64
-ifeq ($(TARGET_ARCH),i686)
-    MSYS2_PREFIX = /mingw32
+# Detect platform
+UNAME_S := $(shell uname -s)
+
+# Platform-specific settings
+ifeq ($(UNAME_S),Linux)
+    # Linux settings
+    EXE_SUFFIX = 
+    PLATFORM_CFLAGS = -DLINUX
+    PLATFORM_LDFLAGS = 
+    WIN_LIBS = 
+    WINDRES = 
+else ifeq ($(OS),Windows_NT)
+    # Windows/MSYS2 settings
+    EXE_SUFFIX = .exe
+    TARGET_ARCH ?= x86_64
+    MSYS2_PREFIX = /mingw64
+    ifeq ($(TARGET_ARCH),i686)
+        MSYS2_PREFIX = /mingw32
+    endif
+    PLATFORM_CFLAGS = -DWIN32 -D_WIN32_WINNT=0x0601
+    PLATFORM_LDFLAGS = -Wl,--subsystem,windows -mwindows
+    WIN_LIBS = -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32
+    WINDRES = windres
+else
+    # Default Unix-like settings
+    EXE_SUFFIX = 
+    PLATFORM_CFLAGS = -DUNIX
+    PLATFORM_LDFLAGS = 
+    WIN_LIBS = 
+    WINDRES = 
 endif
 
-# Compiler settings for Windows
+# Compiler settings
 CC = gcc
 CXX = g++
-WINDRES = windres
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2 -g -DWIN32 -D_WIN32_WINNT=0x0601
-CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -O2 -g -DWIN32 -D_WIN32_WINNT=0x0601
-LDFLAGS = -Wl,--subsystem,windows -mwindows
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -O2 -g $(PLATFORM_CFLAGS)
+CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -O2 -g $(PLATFORM_CFLAGS)
+LDFLAGS = $(PLATFORM_LDFLAGS)
 
 # Debug build settings
-DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -DWIN32 -D_WIN32_WINNT=0x0601
-DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG -DWIN32 -D_WIN32_WINNT=0x0601
-DEBUG_LDFLAGS = -Wl,--subsystem,console
+DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
+DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
+DEBUG_LDFLAGS = $(PLATFORM_LDFLAGS)
 
-# Package dependencies (Windows/MSYS2)
-GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0)
-GTK_LIBS = $(shell pkg-config --libs gtk+-3.0)
+# Package dependencies
+GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0 2>/dev/null)
+GTK_LIBS = $(shell pkg-config --libs gtk+-3.0 2>/dev/null)
 
-GL_CFLAGS = $(shell pkg-config --cflags gl glu 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
-GL_LIBS = $(shell pkg-config --libs gl glu 2>/dev/null || echo "-lopengl32 -lglu32")
-
-GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
-GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3 -lgdi32")
-
-# Windows-specific libraries
-WIN_LIBS = -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32
+ifeq ($(UNAME_S),Linux)
+    # Linux OpenGL libraries
+    GL_CFLAGS = $(shell pkg-config --cflags gl glu glew 2>/dev/null)
+    GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lGL -lGLU -lGLEW")
+    
+    GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null)
+    GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw")
+    
+    JSON_CFLAGS = $(shell pkg-config --cflags json-c 2>/dev/null)
+    JSON_LIBS = $(shell pkg-config --libs json-c 2>/dev/null || echo "-ljson-c")
+else
+    # Windows/MSYS2 OpenGL libraries
+    GL_CFLAGS = $(shell pkg-config --cflags gl glu glew 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+    GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lopengl32 -lglu32 -lglew32")
+    
+    GLFW_CFLAGS = $(shell pkg-config --cflags glfw3 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+    GLFW_LIBS = $(shell pkg-config --libs glfw3 2>/dev/null || echo "-lglfw3 -lgdi32")
+    
+    JSON_CFLAGS = $(shell pkg-config --cflags json-c 2>/dev/null || echo "-I$(MSYS2_PREFIX)/include")
+    JSON_LIBS = $(shell pkg-config --libs json-c 2>/dev/null || echo "-ljson-c")
+endif
 
 # Additional libraries
 MATH_LIBS = -lm
 PTHREAD_LIBS = -lpthread
 
 # Combined flags
-ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) $(JSON_CFLAGS) -I$(NURBS_SRC_DIR)
+ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
 # Debug flags
-DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) -I$(NURBS_SRC_DIR)
-DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
+DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) $(JSON_CFLAGS) -I$(NURBS_SRC_DIR)
+DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 
 # Source files
 EDITOR_SOURCES = \
 	main.c \
 	editor.c \
 	iges_loader.c \
-	nurbs_primitives.c \
-	viewport.c \
-	scene_hierarchy.c \
-	properties_panel.c \
-	file_operations.c \
-	undo_redo.c \
-	camera_controls.c \
-	selection_system.c \
-	material_editor.c \
-	lighting_system.c
+	nurbs_primitives.c
 
 # NURBS library sources
 NURBS_SOURCES = \
@@ -165,8 +192,13 @@ $(RESOURCE_RC):
 
 # Compile resource file
 $(RESOURCE_OBJ): $(RESOURCE_RC) | $(OBJ_DIR)
+ifeq ($(UNAME_S),Linux)
+	@echo "Skipping Windows resources on Linux..."
+	@touch $(RESOURCE_OBJ)
+else
 	@echo "Compiling Windows resources..."
 	$(WINDRES) -i $(RESOURCE_RC) -o $(RESOURCE_OBJ)
+endif
 
 # Release target
 $(TARGET): $(ALL_OBJECTS) $(RESOURCE_OBJ) | $(BIN_DIR)
