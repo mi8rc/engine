@@ -25,8 +25,8 @@ ifeq ($(UNAME_S),Linux)
     PLATFORM_LDFLAGS = 
     WIN_LIBS = 
     WINDRES = 
-else ifeq ($(OS),Windows_NT)
-    # Windows/MSYS2 settings
+else ifneq ($(findstring MINGW,$(UNAME_S)),)
+    # Windows/MSYS2 settings (MINGW64_NT, MINGW32_NT, etc.)
     EXE_SUFFIX = .exe
     TARGET_ARCH ?= x86_64
     MSYS2_PREFIX = /mingw64
@@ -35,7 +35,21 @@ else ifeq ($(OS),Windows_NT)
     endif
     PLATFORM_CFLAGS = -DWIN32 -D_WIN32_WINNT=0x0601
     PLATFORM_LDFLAGS = -Wl,--subsystem,console
-    WIN_LIBS = -luser32 -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -ladvapi32 -lshell32 -lole32 -loleaut32 -luuid -lodbc32 -lodbccp32
+    # WIN_LIBS = GTK already provides most Windows libraries, so we'll keep this minimal
+    WIN_LIBS = 
+    WINDRES = windres
+else ifeq ($(OS),Windows_NT)
+    # Windows/MSYS2 settings (fallback)
+    EXE_SUFFIX = .exe
+    TARGET_ARCH ?= x86_64
+    MSYS2_PREFIX = /mingw64
+    ifeq ($(TARGET_ARCH),i686)
+        MSYS2_PREFIX = /mingw32
+    endif
+    PLATFORM_CFLAGS = -DWIN32 -D_WIN32_WINNT=0x0601
+    PLATFORM_LDFLAGS = -Wl,--subsystem,console
+    # WIN_LIBS = GTK already provides most Windows libraries, so we'll keep this minimal
+    WIN_LIBS = 
     WINDRES = windres
 else
     # Default Unix-like settings
@@ -56,7 +70,7 @@ LDFLAGS = $(PLATFORM_LDFLAGS)
 # Debug build settings
 DEBUG_CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
 DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Og -g3 -DDEBUG $(PLATFORM_CFLAGS)
-ifeq ($(UNAME_S),Linux)
+ifeq ($(IS_WINDOWS),0)
     DEBUG_LDFLAGS = $(PLATFORM_LDFLAGS)
 else
     # Windows debug should use console subsystem for better debugging
@@ -67,7 +81,10 @@ endif
 GTK_CFLAGS = $(shell pkg-config --cflags gtk+-3.0 2>/dev/null)
 GTK_LIBS = $(shell pkg-config --libs gtk+-3.0 2>/dev/null)
 
-ifeq ($(UNAME_S),Linux)
+# Check if we're on Windows (MINGW or Windows_NT)
+IS_WINDOWS := $(if $(findstring MINGW,$(UNAME_S)),1,$(if $(filter Windows_NT,$(OS)),1,0))
+
+ifeq ($(IS_WINDOWS),0)
     # Linux OpenGL libraries
     GL_CFLAGS = $(shell pkg-config --cflags gl glu glew 2>/dev/null)
     GL_LIBS = $(shell pkg-config --libs gl glu glew 2>/dev/null || echo "-lGL -lGLU -lGLEW")
@@ -90,10 +107,12 @@ else
 endif
 
 # Additional libraries
-MATH_LIBS = -lm
-ifeq ($(UNAME_S),Linux)
+ifeq ($(IS_WINDOWS),0)
+    MATH_LIBS = -lm
     PTHREAD_LIBS = -lpthread
 else
+    # Windows/MinGW includes math functions in standard library
+    MATH_LIBS = 
     # Windows doesn't need explicit pthread linking with mingw
     PTHREAD_LIBS = 
 endif
@@ -101,7 +120,7 @@ endif
 # Combined flags
 ALL_CFLAGS = $(CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) $(JSON_CFLAGS) -I$(NURBS_SRC_DIR)
 # Order libraries properly for Windows linking
-ifeq ($(UNAME_S),Linux)
+ifeq ($(IS_WINDOWS),0)
     ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 else
     # Windows library order matters more - put system libs last
@@ -110,7 +129,7 @@ endif
 
 # Debug flags
 DEBUG_ALL_CFLAGS = $(DEBUG_CFLAGS) $(GTK_CFLAGS) $(GL_CFLAGS) $(GLFW_CFLAGS) $(JSON_CFLAGS) -I$(NURBS_SRC_DIR)
-ifeq ($(UNAME_S),Linux)
+ifeq ($(IS_WINDOWS),0)
     DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(WIN_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS)
 else
     DEBUG_ALL_LIBS = $(GTK_LIBS) $(GL_LIBS) $(GLFW_LIBS) $(JSON_LIBS) $(MATH_LIBS) $(PTHREAD_LIBS) $(WIN_LIBS)
@@ -212,7 +231,7 @@ $(RESOURCE_RC):
 
 # Compile resource file
 $(RESOURCE_OBJ): $(RESOURCE_RC) | $(OBJ_DIR)
-ifeq ($(UNAME_S),Linux)
+ifeq ($(IS_WINDOWS),0)
 	@echo "Skipping Windows resources on Linux..."
 	@touch $(RESOURCE_OBJ)
 else
@@ -327,6 +346,17 @@ analyze:
 	@echo "Running static analysis on Windows..."
 	-cppcheck --enable=all --std=c11 --platform=win64 $(EDITOR_SOURCES)
 	@echo "Windows static analysis complete"
+
+# Debug platform detection
+.PHONY: debug-platform
+debug-platform:
+	@echo "UNAME_S: $(UNAME_S)"
+	@echo "OS: $(OS)"
+	@echo "IS_WINDOWS: $(IS_WINDOWS)"
+	@echo "EXE_SUFFIX: $(EXE_SUFFIX)"
+	@echo "PLATFORM_CFLAGS: $(PLATFORM_CFLAGS)"
+	@echo "WIN_LIBS: $(WIN_LIBS)"
+	@echo "ALL_LIBS: $(ALL_LIBS)"
 
 # Test linking with minimal libraries
 .PHONY: test-link
