@@ -3,6 +3,7 @@
  * Basic NURBS shape creation functions for the map editor
  */
 
+#include "win_compat.h"
 #include "nurbs_primitives.h"
 #include <stdlib.h>
 #include <string.h>

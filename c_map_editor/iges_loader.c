@@ -3,9 +3,9 @@
  * Full IGES file format support for NURBS Map Editor
  */
 
+#include "win_compat.h"
 #include "iges_loader.h"
 #include <string.h>
-#include <ctype.h>
 #include <errno.h>
 
 // Global error tracking
