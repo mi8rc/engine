@@ -1,228 +1,160 @@
-# NURBS FPS Game Engine
+# NURBS Map Editor
 
-A complete First-Person Shooter game engine that uses **ONLY NURBS surfaces** for all geometry rendering, with lighting and collision detection support. Includes a Python map editor similar to hammer.
-
-## 🚨 IMPORTANT: NO POLYGONS!
-
-This engine is built entirely around NURBS (Non-Uniform Rational B-Splines) surfaces. **NO POLYGONAL MESHES ARE USED**. All geometry is mathematically defined and tessellated from NURBS surfaces at runtime.
+A professional 3D NURBS-based map editor built with C and GTK3, featuring a Roblox Studio-inspired interface and comprehensive IGES file support.
 
 ## Features
 
-### C Game Engine
-- **Pure NURBS Rendering**: All geometry uses NURBS surfaces (spheres, planes, cylinders, tori)
-- **Advanced Lighting**: Multi-light Phong shading model with point, directional, and spot lights
-- **NURBS Collision Detection**: Ray-surface intersection using tessellated NURBS surfaces
-- **FPS Controls**: Full first-person camera with WASD movement and mouse look
-- **OpenGL Integration**: Modern OpenGL 3.3+ with shader-based rendering
-- **Map Loading**: Load scenes created in the Python editor
+### Core Functionality
+- **NURBS Curves and Surfaces**: Full support for Non-Uniform Rational B-Splines
+- **3D Viewport**: OpenGL-based rendering with camera controls
+- **Interactive Editing**: Control point manipulation, curve/surface creation
+- **Professional UI**: Dark theme inspired by Roblox Studio
 
-### Python Map Editor
-- **hammmer Studio-like Interface**: Familiar 3D editing environment
-- **NURBS Object Placement**: Add spheres, planes, cylinders, and tori
-- **Light Management**: Place and configure point, directional, and spot lights
-- **Material Editor**: Adjust ambient, diffuse, specular properties and shininess
-- **Scene Hierarchy**: Tree view of all objects and lights
-- **Property Inspector**: Real-time editing of transform and material properties
-- **Export to Game**: Save scenes in format compatible with C engine
+### File Format Support
+- **IGES (.igs/.iges)**: Full import/export support for IGES files
+- **Native Format (.nme)**: Optimized format for project files
+- **OBJ Export**: Export tessellated geometry to Wavefront OBJ
 
-## Directory Structure
-
-```
-workspace/
-├── src/                    # C game engine source
-│   ├── nurbs.h/.c         # Core NURBS mathematics and rendering
-│   ├── fps_engine.h/.c    # Main game engine and FPS controls
-│   ├── math_utils.c       # Matrix operations and shader management
-│   ├── map_loader.h/.c    # Map file loading from Python editor
-│   └── main.c             # Main game entry point
-├── map_editor/            # Python map editor
-│   ├── nurbs_editor.py    # Main editor application
-│   └── requirements.txt   # Python dependencies
-├── Makefile              # Build system
-└── README.md             # This file
-```
-
-## Installation
-
-### System Dependencies
-
-**Ubuntu/Debian:**
-```bash
-make install-deps
-```
-
-**Fedora/RHEL:**
-```bash
-make install-deps-fedora
-```
-
-**Arch Linux:**
-```bash
-make install-deps-arch
-```
-
-### Python Editor Dependencies
-```bash
-cd map_editor
-pip install -r requirements.txt
-```
+### User Interface
+- **Hierarchy Panel**: Scene object management with tree view
+- **Property Panel**: Real-time object property editing
+- **3D Viewport**: Interactive 3D scene with grid and navigation
+- **Toolbar**: Quick access to common tools
+- **Dark Theme**: Professional dark interface matching modern IDEs
 
 ## Building
 
-### Compile the Game Engine
+### Windows (MSYS2) - Recommended
+
+1. **Install MSYS2** from https://www.msys2.org/
+
+2. **Install dependencies**:
+   ```bash
+   # Open MSYS2 MinGW 64-bit terminal
+   pacman -S mingw-w64-x86_64-gcc
+   pacman -S mingw-w64-x86_64-pkg-config
+   pacman -S mingw-w64-x86_64-gtk3
+   pacman -S mingw-w64-x86_64-glew
+   ```
+
+3. **Build**:
+   ```bash
+   # Quick build (Windows batch file)
+   build-windows.bat
+   
+   # Or manually in MSYS2 terminal
+   make release      # Release build
+   make debug        # Debug build
+   make run          # Build and run
+   make package      # Create distribution package
+   ```
+
+### Linux (Ubuntu/Debian)
+
 ```bash
-make
+# Install dependencies
+sudo apt-get install build-essential pkg-config
+sudo apt-get install libgtk-3-dev libgl1-mesa-dev libglew-dev
+
+# Build
+./build.sh           # Quick build script
+# Or manually:
+make release         # Release build
+make debug          # Debug build  
+make run            # Build and run
+make install        # Install system-wide
+make package        # Create distribution package
 ```
 
-### Debug Build
+### Makefile Targets
+
 ```bash
-make debug
+make all            # Build the project (default)
+make debug          # Build with debug symbols
+make release        # Build optimized release
+make clean          # Remove build files
+make install        # Install to system (Linux only)
+make package        # Create distribution package
+make run            # Build and run the application
+make deps           # Show dependency information
+make info           # Show build information
 ```
 
-### Release Build
-```bash
-make release
-```
+### Why MSYS2 + Makefile?
 
-### Clean Build Files
-```bash
-make clean
-```
+- ✅ **No vcpkg bullshit** - Direct package management
+- ✅ **No CMake complexity** - Simple, readable Makefile
+- ✅ **Native GTK3 support** - Proper Windows GTK3 builds
+- ✅ **Fast builds** - No configuration overhead
+- ✅ **Easy distribution** - Self-contained binaries
+- ✅ **Cross-platform** - Same Makefile works on Windows/Linux
 
 ## Usage
 
-### Running the Game
+### Getting Started
 
-**With demo scene:**
-```bash
-./bin/nurbs_fps_game
-```
+1. **Launch the Editor**: Run `NurbsMapEditor.exe` (Windows) or `./NurbsMapEditor` (Linux)
+2. **Create Objects**: Use the hierarchy panel toolbar to add NURBS curves or surfaces
+3. **Edit Properties**: Select objects to edit their properties in the property panel
+4. **Manipulate Geometry**: Use tools to move objects and edit control points
+5. **Save/Load**: Use File menu to save projects or import IGES files
 
-**With custom map:**
-```bash
-./bin/nurbs_fps_game path/to/map_file.map
-```
+### Keyboard Shortcuts
 
-### Controls
-- **WASD** - Movement
-- **Mouse** - Look around
-- **Space** - Move up
-- **Shift** - Move down
-- **Escape** - Exit
+- `S` - Select tool
+- `M` - Move tool  
+- `C` - Create curve tool
+- `Ctrl+N` - New file
+- `Ctrl+O` - Open file
+- `Ctrl+S` - Save file
 
-### Using the Map Editor
+### IGES File Support
 
-**Start the editor:**
-```bash
-cd map_editor
-python3 nurbs_editor.py
-```
+The editor provides comprehensive IGES file support:
 
-**Creating a Scene:**
-1. Use the **Insert** menu to add NURBS objects and lights
-2. Select objects in the **Scene Hierarchy**
-3. Modify properties in the **Properties** panel
-4. Use tools in the toolbar for selection, movement, rotation, and scaling
-5. Export via **File → Export for Game...**
+- **Import**: Load NURBS curves and surfaces from IGES files
+- **Export**: Save scenes to IGES format for CAD interoperability
+- **Entity Support**: 
+  - NURBS Curves (Type 126)
+  - NURBS Surfaces (Type 128)
+  - Transformation matrices
 
-## NURBS Mathematics
+### Camera Controls
 
-The engine implements full NURBS surface evaluation:
+- **Middle Mouse**: Rotate camera
+- **Scroll Wheel**: Zoom in/out
+- **Shift+Middle Mouse**: Pan camera
 
-- **B-spline basis functions** using Cox-de Boor recursion
-- **Rational surface evaluation** with homogeneous coordinates
-- **Partial derivative calculation** for normal vectors
-- **Tessellation to triangles** for OpenGL rendering
-- **Collision detection** via ray-surface intersection
+## Distribution
 
-### Supported NURBS Primitives
+### Windows
+The built executable requires MSYS2 MinGW64 DLLs. For distribution:
+1. Copy required DLLs from `C:\msys64\mingw64\bin\`
+2. Include GTK3 themes and icons
+3. Package with installer or portable zip
 
-1. **Sphere** - Rational Bézier sphere patches
-2. **Plane** - Linear NURBS surface 
-3. **Cylinder** - Circular rational curves extruded linearly
-4. **Torus** - Rational surface of revolution
+### Linux
+Standard shared library dependencies via package manager.
 
-## Lighting Model
+## Architecture
 
-The engine uses Phong shading with:
-- **Ambient lighting** - Global illumination
-- **Diffuse lighting** - Lambert's cosine law
-- **Specular highlights** - Phong reflection model
-- **Multiple light sources** - Up to 32 lights
-- **Attenuation** - Distance-based light falloff
-
-## Map File Format
-
-Maps are exported as JSON with this structure:
-
-```json
-{
-  "version": "1.0",
-  "objects": [
-    {
-      "name": "Sphere_1",
-      "type": "sphere",
-      "position": [0.0, 0.0, 0.0],
-      "rotation": [0.0, 0.0, 0.0],
-      "scale": [1.0, 1.0, 1.0],
-      "material": {
-        "ambient": [0.2, 0.2, 0.2],
-        "diffuse": [0.8, 0.8, 0.8],
-        "specular": [1.0, 1.0, 1.0],
-        "shininess": 32.0
-      },
-      "collidable": true,
-      "parameters": {"radius": 1.0}
-    }
-  ],
-  "lights": [
-    {
-      "name": "Point_Light_1",
-      "type": 0,
-      "position": [0.0, 5.0, 0.0],
-      "color": [1.0, 1.0, 1.0],
-      "intensity": 1.0,
-      "direction": [0.0, -1.0, 0.0],
-      "spot_angle": 45.0
-    }
-  ]
-}
-```
-
-## Performance Notes
-
-- **Tessellation Resolution**: Adjust in `tessellate_nurbs_surface()` calls
-- **Collision Precision**: Modify tessellation resolution for collision surfaces
-- **Light Count**: Performance scales with number of lights (max 32)
-- **Surface Complexity**: Higher-degree NURBS surfaces are more expensive
-
-## Architecture Overview
-
-```
-Python Editor → Export .map → C Engine → NURBS Math → OpenGL → Display
-                                    ↓
-                             Collision Detection
-                                    ↓
-                              Physics Response
-```
-
-## Contributing
-
-When adding new NURBS surface types:
-
-1. Add creation function to `nurbs.c`
-2. Update `ObjectType` enum in Python editor
-3. Add parsing in `map_loader.c`
-4. Test collision detection
+### Core Components
+- **NURBS Engine** (`src/nurbs.c`): Mathematical NURBS evaluation and rendering
+- **File I/O** (`src/file_io.c`): Multi-format file import/export including IGES
+- **Viewport** (`src/viewport.c`): OpenGL-based 3D rendering
+- **UI Framework** (`src/ui_builder.c`): GTK3 interface with custom styling
+- **Tools System** (`src/tools.c`): Interactive editing tools
 
 ## License
 
-This project demonstrates advanced NURBS mathematics in real-time applications. Use for educational and research purposes.
+This project is licensed under the MIT License.
 
-## References
+## Why Not vcpkg?
 
-- "The NURBS Book" by Piegl and Tiller
-- OpenGL Programming Guide
-- Computer Graphics: Principles and Practice
+vcpkg is a nightmare for GTK3 on Windows:
+- Endless dependency loops
+- Broken baseline commits
+- Manifest mode confusion
+- Poor GTK3 Windows support
 
-
+MSYS2 just works. Use it.
