@@ -26,9 +26,9 @@ jobs:
         path: |
           ${{ github.workspace }}/vcpkg
           ${{ github.workspace }}/vcpkg_installed
-        key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+        key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('vcpkg.json') }}
         restore-keys: |
-          ${{ runner.os }}-vcpkg-
+          ${{ runner.os }}-vcpkg-v2-
 
     - name: Setup vcpkg
       run: |
