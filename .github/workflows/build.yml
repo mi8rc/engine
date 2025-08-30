@@ -1,439 +1,51 @@
-name: Build and Test NURBS FPS Engine
+name: Build NURBS Map Editor
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
-  release:
-    types: [ published ]
-  workflow_dispatch:
-
-env:
-  BUILD_TYPE: Release
+    branches: [ main, master ]
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        compiler: [gcc, clang]
-        build_type: [Debug, Release]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libglfw3-dev \
-          libgl1-mesa-dev \
-          libglu1-mesa-dev \
-          libjson-c-dev \
-          build-essential \
-          clang \
-          valgrind \
-          pkg-config
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        cd map_editor
-        pip install -r requirements.txt
-    
-    - name: Build with GCC
-      if: matrix.compiler == 'gcc'
-      run: |
-        export CC=gcc
-        make clean
-        make ${{ matrix.build_type == 'Debug' && 'debug' || 'release' }}
-    
-    - name: Build with Clang
-      if: matrix.compiler == 'clang'
-      run: |
-        export CC=clang
-        make clean
-        make ${{ matrix.build_type == 'Debug' && 'debug' || 'release' }}
-    
-
-    
-    
-    - name: Memory leak check (Debug builds only)
-      if: matrix.build_type == 'Debug' && matrix.compiler == 'gcc'
-      run: |
-        # Quick valgrind check (will timeout after 10 seconds)
-        timeout 10s valgrind --leak-check=summary --error-exitcode=1 \
-          ./bin/nurbs_fps_game sample_maps/demo_scene.map || [ $? -eq 124 ]
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: nurbs-fps-linux-${{ matrix.compiler }}-${{ matrix.build_type }}
-        path: |
-          bin/nurbs_fps_game
-          sample_maps/
-          map_editor/
-        retention-days: 30
-
-  build-macos:
-    runs-on: macos-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install dependencies
-      run: |
-        brew update
-        brew install glfw json-c pkg-config
-    
-   
-    - name: Build
-      run: |
-        make clean
-        make release
-    
- 
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: nurbs-fps-macos
-        path: |
-          bin/nurbs_fps_game
-          sample_maps/
-          map_editor/
-        retention-days: 30
-
-  build-windows:
+  build-msys2:
     runs-on: windows-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+      
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
         msystem: MINGW64
+        update: true
         install: >-
-          mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-glfw
-          mingw-w64-x86_64-json-c
-          mingw-w64-x86_64-pkg-config
           make
-    
+          cmake
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-make
+          mingw-w64-x86_64-glfw
+          mingw-w64-x86_64-freeglut
+          mingw-w64-x86_64-pkg-config
+          
+    - name: Build project
 
-    
-    - name: Build with MSYS2
+      run: |
+        
+        mkdir build
+        cd build
+        cmake .. -G "MinGW Makefiles"
+        make .
+    - name: Package binary
       shell: msys2 {0}
       run: |
-        export PATH="/mingw64/bin:$PATH"
-        make clean
-        make release
-    
-    - name: Bundle DLLs for portable distribution
-      shell: msys2 {0}
-      run: |
+        mkdir -p release
 
-          # Create portable distribution directory
-          mkdir -p portable-dist
-
-          # Copy the executable
-          cp bin/nurbs_fps_game.exe portable-dist/
-
-          # Copy sample maps and editor
-          cp -r sample_maps portable-dist/
-          cp -r map_editor portable-dist/
-          cp README.md portable-dist/
-
-          # Track copied DLLs in a file instead of associative array
-          copied_list="copied_dlls.txt"
-          > "$copied_list"
-
-          copy_dll() {
-            local dll_path="$1"
-            local target_dir="$2"
-            local dll_name=$(basename "$dll_path")
-            if [ -f "$dll_path" ] && ! grep -qx "$dll_name" "$copied_list"; then
-              cp "$dll_path" "$target_dir/"
-              echo "$dll_name" >> "$copied_list"
-              echo "Copied: $dll_name"
-            fi
-          }
-
-          echo "Analyzing DLL dependencies..."
-          # First pass: direct dependencies
-          ldd bin/nurbs_fps_game.exe | grep -E "(mingw64|msys64)" | awk '{print $3}' | while read dll; do
-            [ -f "$dll" ] && copy_dll "$dll" "portable-dist"
-          done
-
-          # Second pass: dependencies of dependencies
-          for dll in portable-dist/*.dll; do
-            [ -f "$dll" ] || continue
-            ldd "$dll" 2>/dev/null | grep -E "(mingw64|msys64)" | awk '{print $3}' | while read dep; do
-              [ -f "$dep" ] && copy_dll "$dep" "portable-dist"
-            done
-          done
-
-          # Copy common MSYS2 runtime DLLs
-          MINGW_PREFIX="/mingw64"
-          for dll in libgcc_s_seh-1.dll libwinpthread-1.dll libstdc++-6.dll libglfw3.dll libjson-c-5.dll; do
-            if [ -f "$MINGW_PREFIX/bin/$dll" ]; then
-              cp "$MINGW_PREFIX/bin/$dll" portable-dist/
-              echo "Copied common DLL: $dll"
-            fi
-          done
-
-          # Create launcher script
-          cat > portable-dist/run_game.bat << 'EOF'
-          @echo off
-          echo ============================================
-          echo NURBS FPS Game - Portable
-          echo ============================================
-          echo.
-          echo Loading sample scene...
-          nurbs_fps_game.exe sample_maps/demo_scene.map
-          if errorlevel 1 (
-            echo Error loading scene, starting without map...
-            nurbs_fps_game.exe
-          )
-          pause
-          EOF
-
-          # Create portable README
-          cat > portable-dist/PORTABLE_README.txt << 'EOF'
-          NURBS FPS Game - Portable Windows Distribution
-          =============================================
-          Includes:
-          - nurbs_fps_game.exe
-          - *.dll files
-          - sample_maps/
-          - map_editor/
-          - run_game.bat
-          - README.md
-          EOF
-
-          echo "Portable distribution contents:"
-          find portable-dist -type f | sort
-      continue-on-error: true
-
-    
-    - name: Upload portable distribution
+        
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: nurbs-fps-windows-portable
-        path: portable-dist/
+        name: nurbs-map-editor-windows
+        path: .
         retention-days: 30
-    
-    - name: Upload build artifacts (legacy)
-      uses: actions/upload-artifact@v4
-      with:
-        name: nurbs-fps-windows
-        path: |
-          bin/nurbs_fps_game.exe
-          sample_maps/
-          map_editor/
-        retention-days: 30
-
-  code-quality:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          cppcheck \
-          clang-format \
-          clang-tidy \
-          libglfw3-dev \
-          libgl1-mesa-dev \
-          libglu1-mesa-dev \
-          libjson-c-dev
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install Python linting tools
-      run: |
-        pip install flake8 black pylint mypy
-    
-    - name: Check C code formatting
-      run: |
-        # Check if C code follows formatting style
-        find src/ -name "*.c" -o -name "*.h" | xargs clang-format --dry-run --Werror
-    
-    - name: Run static analysis on C code
-      run: |
-        # Run cppcheck on source files
-        cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem src/
-    
-    - name: Run Python linting
-      run: |
-        cd map_editor
-        # Check Python code style
-        flake8 --max-line-length=100 --ignore=E203,W503 nurbs_editor.py
-        
-        # Check Python types (ignore missing imports for optional dependencies)
-        mypy nurbs_editor.py --ignore-missing-imports || true
-
-  documentation:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install documentation tools
-      run: |
-        pip install sphinx sphinx-rtd-theme breathe doxygen
-    
-    - name: Check README completeness
-      run: |
-        # Verify README has all required sections
-        grep -q "## Features" README.md
-        grep -q "## Installation" README.md
-        grep -q "## Usage" README.md
-        grep -q "NURBS" README.md
-        echo "README.md validation passed"
-    
-    - name: Validate sample map
-      run: |
-        # Verify sample map is valid JSON
-        python -c "
-        import json
-        with open('sample_maps/demo_scene.map', 'r') as f:
-            data = json.load(f)
-        assert 'objects' in data
-        assert 'lights' in data
-        print('Sample map validation passed')
-        "
-
-  performance-test:
-    runs-on: ubuntu-latest
-    needs: build-linux
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libglfw3-dev \
-          libgl1-mesa-dev \
-          libglu1-mesa-dev \
-          libjson-c-dev \
-          build-essential \
-          time
-    
-    - name: Build optimized version
-      run: |
-        make clean
-        CFLAGS="-O3 -march=native -DNDEBUG" make
-    
-    - name: Performance benchmark
-      run: |
-        # Run game for a few seconds and measure performance
-        echo "Running performance test..."
-        timeout 3s /usr/bin/time -v ./bin/nurbs_fps_game sample_maps/demo_scene.map || [ $? -eq 124 ]
-        echo "Performance test completed"
-
-  release:
-    if: github.event_name == 'release'
-    needs: [build-linux, build-macos, build-windows, code-quality]
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v3
-    
-    - name: Create release archives
-      run: |
-        # Create compressed archives for each platform
-        tar -czf nurbs-fps-linux.tar.gz nurbs-fps-linux-*
-        tar -czf nurbs-fps-macos.tar.gz nurbs-fps-macos
-        zip -r nurbs-fps-windows.zip nurbs-fps-windows
-        
-        # Create portable Windows distribution archive
-        if [ -d "nurbs-fps-windows-portable" ]; then
-          zip -r nurbs-fps-windows-portable.zip nurbs-fps-windows-portable
-          echo "Created portable Windows distribution"
-        fi
-    
-    - name: Upload Linux release asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./nurbs-fps-linux.tar.gz
-        asset_name: nurbs-fps-linux.tar.gz
-        asset_content_type: application/gzip
-    
-    - name: Upload macOS release asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./nurbs-fps-macos.tar.gz
-        asset_name: nurbs-fps-macos.tar.gz
-        asset_content_type: application/gzip
-    
-    - name: Upload Windows release asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./nurbs-fps-windows.zip
-        asset_name: nurbs-fps-windows.zip
-        asset_content_type: application/zip
-    
-    - name: Upload Windows portable release asset
-      if: hashFiles('nurbs-fps-windows-portable.zip') != ''
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./nurbs-fps-windows-portable.zip
-        asset_name: nurbs-fps-windows-portable.zip
-        asset_content_type: application/zip
-
-  container-build:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Build Docker image
-      run: |
-        docker build -t nurbs-fps-engine .
-    
-    - name: Test Docker container
-      run: |
-        # Test that container builds successfully
-        docker run --rm nurbs-fps-engine echo "Container test passed"
