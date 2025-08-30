@@ -40,7 +40,8 @@ jobs:
 
     - name: Install dependencies with vcpkg
       run: |
-        .\vcpkg\vcpkg install --triplet x64-windows
+        $env:VCPKG_DEFAULT_TRIPLET = "x64-windows"
+        .\vcpkg\vcpkg install
 
     - name: Configure CMake
       run: |
