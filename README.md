@@ -32,8 +32,6 @@ A professional 3D NURBS-based map editor built with C and GTK3, featuring a Robl
    ```bash
    # Open MSYS2 MinGW 64-bit terminal
    pacman -S mingw-w64-x86_64-gcc
-   pacman -S mingw-w64-x86_64-cmake
-   pacman -S mingw-w64-x86_64-ninja
    pacman -S mingw-w64-x86_64-pkg-config
    pacman -S mingw-w64-x86_64-gtk3
    pacman -S mingw-w64-x86_64-glew
@@ -41,35 +39,55 @@ A professional 3D NURBS-based map editor built with C and GTK3, featuring a Robl
 
 3. **Build**:
    ```bash
-   # In MSYS2 MinGW 64-bit terminal
-   cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
-   cmake --build build
-   ```
-
-   Or use the provided batch file:
-   ```cmd
+   # Quick build (Windows batch file)
    build-windows.bat
+   
+   # Or manually in MSYS2 terminal
+   make release      # Release build
+   make debug        # Debug build
+   make run          # Build and run
+   make package      # Create distribution package
    ```
 
 ### Linux (Ubuntu/Debian)
 
 ```bash
 # Install dependencies
-sudo apt-get update
-sudo apt-get install build-essential cmake pkg-config
+sudo apt-get install build-essential pkg-config
 sudo apt-get install libgtk-3-dev libgl1-mesa-dev libglew-dev
 
 # Build
-./build.sh
+./build.sh           # Quick build script
+# Or manually:
+make release         # Release build
+make debug          # Debug build  
+make run            # Build and run
+make install        # Install system-wide
+make package        # Create distribution package
 ```
 
-### Why MSYS2?
+### Makefile Targets
+
+```bash
+make all            # Build the project (default)
+make debug          # Build with debug symbols
+make release        # Build optimized release
+make clean          # Remove build files
+make install        # Install to system (Linux only)
+make package        # Create distribution package
+make run            # Build and run the application
+make deps           # Show dependency information
+make info           # Show build information
+```
+
+### Why MSYS2 + Makefile?
 
 - ✅ **No vcpkg bullshit** - Direct package management
+- ✅ **No CMake complexity** - Simple, readable Makefile
 - ✅ **Native GTK3 support** - Proper Windows GTK3 builds
-- ✅ **Reliable dependencies** - Battle-tested package system
+- ✅ **Fast builds** - No configuration overhead
 - ✅ **Easy distribution** - Self-contained binaries
-- ✅ **Fast builds** - No endless dependency resolution
+- ✅ **Cross-platform** - Same Makefile works on Windows/Linux
 
 ## Usage
 
