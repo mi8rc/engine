@@ -1,14 +1,62 @@
 #include "nurbs.h"
-#include <string.h>
 #include <math.h>
-#include <stdio.h>
 
-// Define M_PI if not available (MSYS2/Windows compatibility)
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+NurbsCurve *nurbs_curve_new(int degree, int num_control_points) {
+    NurbsCurve *curve = g_malloc0(sizeof(NurbsCurve));
+    
+    curve->degree = degree;
+    curve->num_control_points = num_control_points;
+    curve->num_knots = num_control_points + degree + 1;
+    
+    curve->control_points = g_malloc0(num_control_points * sizeof(ControlPoint));
+    curve->knots = g_malloc0(curve->num_knots * sizeof(float));
+    
+    // Initialize with default values
+    for (int i = 0; i < num_control_points; i++) {
+        curve->control_points[i].w = 1.0f; // Default weight
+    }
+    
+    // Generate uniform knot vector
+    generate_uniform_knots(curve->knots, curve->num_knots, degree);
+    
+    curve->dirty = TRUE;
+    curve->vao = curve->vbo = 0;
+    curve->vertices = NULL;
+    curve->num_vertices = 0;
+    
+    return curve;
+}
 
-// Calculate B-spline basis function using Cox-de Boor recursion
+void nurbs_curve_free(NurbsCurve *curve) {
+    if (!curve) return;
+    
+    g_free(curve->control_points);
+    g_free(curve->knots);
+    g_free(curve->vertices);
+    
+    if (curve->vao) glDeleteVertexArrays(1, &curve->vao);
+    if (curve->vbo) glDeleteBuffers(1, &curve->vbo);
+    
+    g_free(curve);
+}
+
+void nurbs_curve_set_control_point(NurbsCurve *curve, int index, float x, float y, float z, float w) {
+    if (!curve || index < 0 || index >= curve->num_control_points) return;
+    
+    curve->control_points[index].x = x;
+    curve->control_points[index].y = y;
+    curve->control_points[index].z = z;
+    curve->control_points[index].w = w;
+    curve->dirty = TRUE;
+}
+
+void nurbs_curve_set_knot(NurbsCurve *curve, int index, float value) {
+    if (!curve || index < 0 || index >= curve->num_knots) return;
+    
+    curve->knots[index] = value;
+    curve->dirty = TRUE;
+}
+
 float nurbs_basis_function(int i, int degree, float t, float *knots) {
     if (degree == 0) {
         return (t >= knots[i] && t < knots[i + 1]) ? 1.0f : 0.0f;
@@ -16,14 +64,12 @@ float nurbs_basis_function(int i, int degree, float t, float *knots) {
     
     float left = 0.0f, right = 0.0f;
     
-    // Left term
-    if (fabs(knots[i + degree] - knots[i]) > EPSILON) {
+    if (knots[i + degree] != knots[i]) {
         left = (t - knots[i]) / (knots[i + degree] - knots[i]) * 
                nurbs_basis_function(i, degree - 1, t, knots);
     }
     
-    // Right term
-    if (fabs(knots[i + degree + 1] - knots[i + 1]) > EPSILON) {
+    if (knots[i + degree + 1] != knots[i + 1]) {
         right = (knots[i + degree + 1] - t) / (knots[i + degree + 1] - knots[i + 1]) * 
                 nurbs_basis_function(i + 1, degree - 1, t, knots);
     }
@@ -31,421 +77,366 @@ float nurbs_basis_function(int i, int degree, float t, float *knots) {
     return left + right;
 }
 
-// Evaluate NURBS curve at parameter t
-Vector3 evaluate_nurbs_curve(NURBSCurve *curve, float t) {
-    Vector3 result = {0.0f, 0.0f, 0.0f};
-    float weight_sum = 0.0f;
+void evaluate_nurbs_curve(NurbsCurve *curve, float t, float *point) {
+    if (!curve || !point) return;
+    
+    float w_sum = 0.0f;
+    point[0] = point[1] = point[2] = 0.0f;
     
     for (int i = 0; i < curve->num_control_points; i++) {
         float basis = nurbs_basis_function(i, curve->degree, t, curve->knots);
         float weight = curve->control_points[i].w * basis;
         
-        result.x += curve->control_points[i].x * weight;
-        result.y += curve->control_points[i].y * weight;
-        result.z += curve->control_points[i].z * weight;
-        weight_sum += weight;
+        point[0] += curve->control_points[i].x * weight;
+        point[1] += curve->control_points[i].y * weight;
+        point[2] += curve->control_points[i].z * weight;
+        w_sum += weight;
     }
     
-    if (weight_sum > EPSILON) {
-        result.x /= weight_sum;
-        result.y /= weight_sum;
-        result.z /= weight_sum;
+    if (w_sum > 0.0f) {
+        point[0] /= w_sum;
+        point[1] /= w_sum;
+        point[2] /= w_sum;
     }
-    
-    return result;
 }
 
-// Evaluate NURBS surface at parameters (u, v)
-SurfacePoint evaluate_nurbs_surface(NURBSSurface *surface, float u, float v) {
-    SurfacePoint result;
-    Vector3 position = {0.0f, 0.0f, 0.0f};
-    Vector3 du = {0.0f, 0.0f, 0.0f};
-    Vector3 dv = {0.0f, 0.0f, 0.0f};
-    float weight_sum = 0.0f;
-    float du_weight_sum = 0.0f;
-    float dv_weight_sum = 0.0f;
+void nurbs_curve_tessellate(NurbsCurve *curve, int resolution) {
+    if (!curve) return;
     
-    // Evaluate surface position and partial derivatives
+    // Free old vertex data
+    g_free(curve->vertices);
+    
+    // Allocate new vertex data (position + normal + color)
+    curve->num_vertices = resolution * 6; // 3 for pos, 3 for color
+    curve->vertices = g_malloc0(curve->num_vertices * sizeof(float));
+    
+    float t_start = curve->knots[curve->degree];
+    float t_end = curve->knots[curve->num_control_points];
+    float t_step = (t_end - t_start) / (resolution - 1);
+    
+    for (int i = 0; i < resolution; i++) {
+        float t = t_start + i * t_step;
+        float point[3];
+        
+        evaluate_nurbs_curve(curve, t, point);
+        
+        // Position
+        curve->vertices[i * 6 + 0] = point[0];
+        curve->vertices[i * 6 + 1] = point[1];
+        curve->vertices[i * 6 + 2] = point[2];
+        
+        // Color (default blue)
+        curve->vertices[i * 6 + 3] = 0.0f; // R
+        curve->vertices[i * 6 + 4] = 0.5f; // G
+        curve->vertices[i * 6 + 5] = 1.0f; // B
+    }
+    
+    // Update OpenGL buffers
+    if (!curve->vao) {
+        glGenVertexArrays(1, &curve->vao);
+        glGenBuffers(1, &curve->vbo);
+    }
+    
+    glBindVertexArray(curve->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, curve->vbo);
+    glBufferData(GL_ARRAY_BUFFER, curve->num_vertices * sizeof(float), 
+                 curve->vertices, GL_DYNAMIC_DRAW);
+    
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    
+    // Color attribute
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), 
+                         (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    
+    curve->dirty = FALSE;
+}
+
+void nurbs_curve_render(NurbsCurve *curve) {
+    if (!curve || !curve->vao) return;
+    
+    if (curve->dirty) {
+        nurbs_curve_tessellate(curve, 100);
+    }
+    
+    glBindVertexArray(curve->vao);
+    glDrawArrays(GL_LINE_STRIP, 0, curve->num_vertices / 6);
+    glBindVertexArray(0);
+}
+
+NurbsSurface *nurbs_surface_new(int degree_u, int degree_v, int num_u, int num_v) {
+    NurbsSurface *surface = g_malloc0(sizeof(NurbsSurface));
+    
+    surface->degree_u = degree_u;
+    surface->degree_v = degree_v;
+    surface->num_control_points_u = num_u;
+    surface->num_control_points_v = num_v;
+    surface->num_knots_u = num_u + degree_u + 1;
+    surface->num_knots_v = num_v + degree_v + 1;
+    
+    // Allocate control points as 2D array
+    surface->control_points = g_malloc0(num_u * sizeof(ControlPoint*));
+    for (int i = 0; i < num_u; i++) {
+        surface->control_points[i] = g_malloc0(num_v * sizeof(ControlPoint));
+        for (int j = 0; j < num_v; j++) {
+            surface->control_points[i][j].w = 1.0f; // Default weight
+        }
+    }
+    
+    surface->knots_u = g_malloc0(surface->num_knots_u * sizeof(float));
+    surface->knots_v = g_malloc0(surface->num_knots_v * sizeof(float));
+    
+    // Generate uniform knot vectors
+    generate_uniform_knots(surface->knots_u, surface->num_knots_u, degree_u);
+    generate_uniform_knots(surface->knots_v, surface->num_knots_v, degree_v);
+    
+    surface->dirty = TRUE;
+    surface->vao = surface->vbo = surface->ebo = 0;
+    surface->vertices = NULL;
+    surface->indices = NULL;
+    surface->num_vertices = surface->num_indices = 0;
+    
+    return surface;
+}
+
+void nurbs_surface_free(NurbsSurface *surface) {
+    if (!surface) return;
+    
+    for (int i = 0; i < surface->num_control_points_u; i++) {
+        g_free(surface->control_points[i]);
+    }
+    g_free(surface->control_points);
+    g_free(surface->knots_u);
+    g_free(surface->knots_v);
+    g_free(surface->vertices);
+    g_free(surface->indices);
+    
+    if (surface->vao) glDeleteVertexArrays(1, &surface->vao);
+    if (surface->vbo) glDeleteBuffers(1, &surface->vbo);
+    if (surface->ebo) glDeleteBuffers(1, &surface->ebo);
+    
+    g_free(surface);
+}
+
+void evaluate_nurbs_surface(NurbsSurface *surface, float u, float v, float *point) {
+    if (!surface || !point) return;
+    
+    float w_sum = 0.0f;
+    point[0] = point[1] = point[2] = 0.0f;
+    
     for (int i = 0; i < surface->num_control_points_u; i++) {
         for (int j = 0; j < surface->num_control_points_v; j++) {
             float basis_u = nurbs_basis_function(i, surface->degree_u, u, surface->knots_u);
             float basis_v = nurbs_basis_function(j, surface->degree_v, v, surface->knots_v);
-            float basis_uv = basis_u * basis_v;
-            float weight = surface->control_points[i][j].w * basis_uv;
+            float basis = basis_u * basis_v;
+            float weight = surface->control_points[i][j].w * basis;
             
-            Vector4 cp = surface->control_points[i][j];
-            
-            // Surface position
-            position.x += cp.x * weight;
-            position.y += cp.y * weight;
-            position.z += cp.z * weight;
-            weight_sum += weight;
-            
-            // Partial derivatives (simplified for demonstration)
-            // In practice, you'd calculate derivative basis functions
-            if (i > 0) {
-                float du_basis = (basis_u - nurbs_basis_function(i-1, surface->degree_u, u, surface->knots_u)) * basis_v;
-                float du_weight = cp.w * du_basis;
-                du.x += cp.x * du_weight;
-                du.y += cp.y * du_weight;
-                du.z += cp.z * du_weight;
-                du_weight_sum += du_weight;
-            }
-            
-            if (j > 0) {
-                float dv_basis = basis_u * (basis_v - nurbs_basis_function(j-1, surface->degree_v, v, surface->knots_v));
-                float dv_weight = cp.w * dv_basis;
-                dv.x += cp.x * dv_weight;
-                dv.y += cp.y * dv_weight;
-                dv.z += cp.z * dv_weight;
-                dv_weight_sum += dv_weight;
-            }
+            point[0] += surface->control_points[i][j].x * weight;
+            point[1] += surface->control_points[i][j].y * weight;
+            point[2] += surface->control_points[i][j].z * weight;
+            w_sum += weight;
         }
     }
     
-    // Normalize by weights
-    if (weight_sum > EPSILON) {
-        position.x /= weight_sum;
-        position.y /= weight_sum;
-        position.z /= weight_sum;
+    if (w_sum > 0.0f) {
+        point[0] /= w_sum;
+        point[1] /= w_sum;
+        point[2] /= w_sum;
     }
-    
-    if (du_weight_sum > EPSILON) {
-        du.x /= du_weight_sum;
-        du.y /= du_weight_sum;
-        du.z /= du_weight_sum;
-    }
-    
-    if (dv_weight_sum > EPSILON) {
-        dv.x /= dv_weight_sum;
-        dv.y /= dv_weight_sum;
-        dv.z /= dv_weight_sum;
-    }
-    
-    result.position = position;
-    result.tangent_u = du;
-    result.tangent_v = dv;
-    result.normal = vector3_normalize(vector3_cross(du, dv));
-    
-    return result;
 }
 
-// Tessellate NURBS surface into triangles for rendering
-TessellatedSurface* tessellate_nurbs_surface(NURBSSurface *surface, int res_u, int res_v) {
-    TessellatedSurface *tess = malloc(sizeof(TessellatedSurface));
-    tess->resolution_u = res_u;
-    tess->resolution_v = res_v;
-    tess->points = malloc(sizeof(SurfacePoint) * res_u * res_v);
-    tess->num_triangles = (res_u - 1) * (res_v - 1) * 2;
-    tess->indices = malloc(sizeof(unsigned int) * tess->num_triangles * 3);
+void nurbs_surface_tessellate(NurbsSurface *surface, int resolution_u, int resolution_v) {
+    if (!surface) return;
     
-    // Generate surface points
-    for (int i = 0; i < res_u; i++) {
-        for (int j = 0; j < res_v; j++) {
-            float u = (float)i / (res_u - 1);
-            float v = (float)j / (res_v - 1);
-            tess->points[i * res_v + j] = evaluate_nurbs_surface(surface, u, v);
+    // Free old data
+    g_free(surface->vertices);
+    g_free(surface->indices);
+    
+    // Allocate new vertex data
+    surface->num_vertices = resolution_u * resolution_v * 9; // pos(3) + normal(3) + color(3)
+    surface->vertices = g_malloc0(surface->num_vertices * sizeof(float));
+    
+    surface->num_indices = (resolution_u - 1) * (resolution_v - 1) * 6; // 2 triangles per quad
+    surface->indices = g_malloc0(surface->num_indices * sizeof(unsigned int));
+    
+    float u_start = surface->knots_u[surface->degree_u];
+    float u_end = surface->knots_u[surface->num_control_points_u];
+    float v_start = surface->knots_v[surface->degree_v];
+    float v_end = surface->knots_v[surface->num_control_points_v];
+    
+    float u_step = (u_end - u_start) / (resolution_u - 1);
+    float v_step = (v_end - v_start) / (resolution_v - 1);
+    
+    // Generate vertices
+    for (int i = 0; i < resolution_u; i++) {
+        for (int j = 0; j < resolution_v; j++) {
+            float u = u_start + i * u_step;
+            float v = v_start + j * v_step;
+            float point[3];
+            
+            evaluate_nurbs_surface(surface, u, v, point);
+            
+            int vertex_index = (i * resolution_v + j) * 9;
+            
+            // Position
+            surface->vertices[vertex_index + 0] = point[0];
+            surface->vertices[vertex_index + 1] = point[1];
+            surface->vertices[vertex_index + 2] = point[2];
+            
+            // Normal (simplified - should compute proper surface normal)
+            surface->vertices[vertex_index + 3] = 0.0f;
+            surface->vertices[vertex_index + 4] = 1.0f;
+            surface->vertices[vertex_index + 5] = 0.0f;
+            
+            // Color (default green)
+            surface->vertices[vertex_index + 6] = 0.0f;
+            surface->vertices[vertex_index + 7] = 0.8f;
+            surface->vertices[vertex_index + 8] = 0.2f;
         }
     }
     
-    // Generate triangle indices
+    // Generate indices
     int index = 0;
-    for (int i = 0; i < res_u - 1; i++) {
-        for (int j = 0; j < res_v - 1; j++) {
-            int base = i * res_v + j;
+    for (int i = 0; i < resolution_u - 1; i++) {
+        for (int j = 0; j < resolution_v - 1; j++) {
+            int v0 = i * resolution_v + j;
+            int v1 = v0 + 1;
+            int v2 = (i + 1) * resolution_v + j;
+            int v3 = v2 + 1;
             
             // First triangle
-            tess->indices[index++] = base;
-            tess->indices[index++] = base + res_v;
-            tess->indices[index++] = base + 1;
+            surface->indices[index++] = v0;
+            surface->indices[index++] = v1;
+            surface->indices[index++] = v2;
             
             // Second triangle
-            tess->indices[index++] = base + 1;
-            tess->indices[index++] = base + res_v;
-            tess->indices[index++] = base + res_v + 1;
+            surface->indices[index++] = v1;
+            surface->indices[index++] = v3;
+            surface->indices[index++] = v2;
         }
     }
     
-    // Generate OpenGL buffers
-    glGenVertexArrays(1, &tess->vao);
-    glGenBuffers(1, &tess->vbo);
-    glGenBuffers(1, &tess->ebo);
+    // Update OpenGL buffers
+    if (!surface->vao) {
+        glGenVertexArrays(1, &surface->vao);
+        glGenBuffers(1, &surface->vbo);
+        glGenBuffers(1, &surface->ebo);
+    }
     
-    glBindVertexArray(tess->vao);
+    glBindVertexArray(surface->vao);
     
-    // Vertex buffer
-    glBindBuffer(GL_ARRAY_BUFFER, tess->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(SurfacePoint) * res_u * res_v, tess->points, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, surface->vbo);
+    glBufferData(GL_ARRAY_BUFFER, surface->num_vertices * sizeof(float),
+                 surface->vertices, GL_DYNAMIC_DRAW);
+    
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, surface->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, surface->num_indices * sizeof(unsigned int),
+                 surface->indices, GL_DYNAMIC_DRAW);
     
     // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SurfacePoint), (void*)offsetof(SurfacePoint, position));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
     
     // Normal attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(SurfacePoint), (void*)offsetof(SurfacePoint, normal));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), 
+                         (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
     
-    // Element buffer
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tess->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * tess->num_triangles * 3, tess->indices, GL_STATIC_DRAW);
+    // Color attribute
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), 
+                         (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
     
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     
-    return tess;
+    surface->dirty = FALSE;
 }
 
-// Ray-NURBS surface intersection for collision detection
-CollisionResult ray_nurbs_surface_intersection(Vector3 ray_origin, Vector3 ray_direction, NURBSSurface *surface) {
-    CollisionResult result = {0};
-    result.hit = 0;
-    result.distance = INFINITY;
+void nurbs_surface_render(NurbsSurface *surface) {
+    if (!surface || !surface->vao) return;
     
-    // Tessellate surface at high resolution for collision
-    TessellatedSurface *tess = tessellate_nurbs_surface(surface, 50, 50);
-    
-    // Check intersection with each triangle
-    for (int i = 0; i < tess->num_triangles; i++) {
-        int i0 = tess->indices[i * 3];
-        int i1 = tess->indices[i * 3 + 1];
-        int i2 = tess->indices[i * 3 + 2];
-        
-        Vector3 v0 = tess->points[i0].position;
-        Vector3 v1 = tess->points[i1].position;
-        Vector3 v2 = tess->points[i2].position;
-        
-        // Möller-Trumbore ray-triangle intersection
-        Vector3 edge1 = vector3_subtract(v1, v0);
-        Vector3 edge2 = vector3_subtract(v2, v0);
-        Vector3 h = vector3_cross(ray_direction, edge2);
-        float a = vector3_dot(edge1, h);
-        
-        if (fabs(a) < EPSILON) continue; // Ray parallel to triangle
-        
-        float f = 1.0f / a;
-        Vector3 s = vector3_subtract(ray_origin, v0);
-        float u = f * vector3_dot(s, h);
-        
-        if (u < 0.0f || u > 1.0f) continue;
-        
-        Vector3 q = vector3_cross(s, edge1);
-        float v = f * vector3_dot(ray_direction, q);
-        
-        if (v < 0.0f || u + v > 1.0f) continue;
-        
-        float t = f * vector3_dot(edge2, q);
-        
-        if (t > EPSILON && t < result.distance) {
-            result.hit = 1;
-            result.distance = t;
-            result.point = vector3_add(ray_origin, vector3_multiply(ray_direction, t));
-            result.normal = vector3_normalize(vector3_cross(edge1, edge2));
-        }
+    if (surface->dirty) {
+        nurbs_surface_tessellate(surface, 20, 20);
     }
     
-    free_tessellated_surface(tess);
-    return result;
+    glBindVertexArray(surface->vao);
+    glDrawElements(GL_TRIANGLES, surface->num_indices, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 }
 
-// Vector operations
-Vector3 vector3_add(Vector3 a, Vector3 b) {
-    return (Vector3){a.x + b.x, a.y + b.y, a.z + b.z};
-}
-
-Vector3 vector3_subtract(Vector3 a, Vector3 b) {
-    return (Vector3){a.x - b.x, a.y - b.y, a.z - b.z};
-}
-
-Vector3 vector3_multiply(Vector3 v, float scalar) {
-    return (Vector3){v.x * scalar, v.y * scalar, v.z * scalar};
-}
-
-Vector3 vector3_cross(Vector3 a, Vector3 b) {
-    return (Vector3){
-        a.y * b.z - a.z * b.y,
-        a.z * b.x - a.x * b.z,
-        a.x * b.y - a.y * b.x
-    };
-}
-
-float vector3_dot(Vector3 a, Vector3 b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-float vector3_length(Vector3 v) {
-    return sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
-}
-
-Vector3 vector3_normalize(Vector3 v) {
-    float length = vector3_length(v);
-    if (length > EPSILON) {
-        return vector3_multiply(v, 1.0f / length);
-    }
-    return (Vector3){0.0f, 0.0f, 1.0f}; // Default up vector
-}
-
-// NURBS primitive creation functions
-NURBSSurface* create_nurbs_plane(float width, float height) {
-    NURBSSurface *surface = malloc(sizeof(NURBSSurface));
-    surface->degree_u = 1;
-    surface->degree_v = 1;
-    surface->num_control_points_u = 2;
-    surface->num_control_points_v = 2;
+MapObject *map_object_new(ObjectType type, const char *name) {
+    MapObject *object = g_malloc0(sizeof(MapObject));
     
-    // Control points for a plane
-    surface->control_points[0][0] = (Vector4){-width/2, 0, -height/2, 1.0f};
-    surface->control_points[0][1] = (Vector4){-width/2, 0,  height/2, 1.0f};
-    surface->control_points[1][0] = (Vector4){ width/2, 0, -height/2, 1.0f};
-    surface->control_points[1][1] = (Vector4){ width/2, 0,  height/2, 1.0f};
+    object->type = type;
+    object->name = g_strdup(name ? name : "Untitled");
+    object->visible = TRUE;
+    object->selected = FALSE;
     
-    // Knot vectors for linear surfaces
-    surface->knots_u[0] = 0.0f; surface->knots_u[1] = 0.0f;
-    surface->knots_u[2] = 1.0f; surface->knots_u[3] = 1.0f;
-    surface->num_knots_u = 4;
+    // Initialize transform
+    object->position[0] = object->position[1] = object->position[2] = 0.0f;
+    object->rotation[0] = object->rotation[1] = object->rotation[2] = 0.0f;
+    object->scale[0] = object->scale[1] = object->scale[2] = 1.0f;
     
-    surface->knots_v[0] = 0.0f; surface->knots_v[1] = 0.0f;
-    surface->knots_v[2] = 1.0f; surface->knots_v[3] = 1.0f;
-    surface->num_knots_v = 4;
+    object->parent = NULL;
     
-    return surface;
-}
-
-NURBSSurface* create_nurbs_sphere(float radius) {
-    NURBSSurface *surface = malloc(sizeof(NURBSSurface));
-    surface->degree_u = 2;
-    surface->degree_v = 2;
-    surface->num_control_points_u = 7;
-    surface->num_control_points_v = 5;
-    
-    // Simplified sphere control points (quarter sphere)
-    // Create control points for a sphere using rational Bézier patches
-    for (int i = 0; i < surface->num_control_points_u; i++) {
-        for (int j = 0; j < surface->num_control_points_v; j++) {
-            float u = (float)i / (surface->num_control_points_u - 1) * M_PI;
-            float v = (float)j / (surface->num_control_points_v - 1) * 2.0f * M_PI;
-            
-            surface->control_points[i][j] = (Vector4){
-                radius * sinf(u) * cosf(v),
-                radius * cosf(u),
-                radius * sinf(u) * sinf(v),
-                1.0f
-            };
-        }
+    switch (type) {
+        case OBJECT_CURVE:
+            object->data.curve = NULL;
+            break;
+        case OBJECT_SURFACE:
+            object->data.surface = NULL;
+            break;
+        case OBJECT_GROUP:
+            object->data.children = NULL;
+            break;
     }
     
-    // Set up knot vectors for periodic surface
-    surface->num_knots_u = surface->num_control_points_u + surface->degree_u + 1;
-    surface->num_knots_v = surface->num_control_points_v + surface->degree_v + 1;
-    
-    for (int i = 0; i < surface->num_knots_u; i++) {
-        surface->knots_u[i] = (float)i / (surface->num_knots_u - 1);
-    }
-    for (int i = 0; i < surface->num_knots_v; i++) {
-        surface->knots_v[i] = (float)i / (surface->num_knots_v - 1);
-    }
-    
-    return surface;
+    return object;
 }
 
-NURBSSurface* create_nurbs_cylinder(float radius, float height) {
-    NURBSSurface *surface = malloc(sizeof(NURBSSurface));
-    surface->degree_u = 2;
-    surface->degree_v = 1;
-    surface->num_control_points_u = 9; // For full circle
-    surface->num_control_points_v = 2; // For height
+void map_object_free(MapObject *object) {
+    if (!object) return;
     
-    // Create cylindrical control points
-    for (int i = 0; i < surface->num_control_points_u; i++) {
-        float angle = (float)i / (surface->num_control_points_u - 1) * 2.0f * M_PI;
-        float weight = (i % 2 == 0) ? 1.0f : 1.0f / sqrtf(2.0f); // Rational weights for circle
-        
-        // Bottom circle
-        surface->control_points[i][0] = (Vector4){
-            radius * cosf(angle),
-            -height / 2.0f,
-            radius * sinf(angle),
-            weight
-        };
-        
-        // Top circle
-        surface->control_points[i][1] = (Vector4){
-            radius * cosf(angle),
-            height / 2.0f,
-            radius * sinf(angle),
-            weight
-        };
+    g_free(object->name);
+    
+    switch (object->type) {
+        case OBJECT_CURVE:
+            nurbs_curve_free(object->data.curve);
+            break;
+        case OBJECT_SURFACE:
+            nurbs_surface_free(object->data.surface);
+            break;
+        case OBJECT_GROUP:
+            g_list_free_full(object->data.children, (GDestroyNotify)map_object_free);
+            break;
     }
     
-    // Set up knot vectors
-    surface->num_knots_u = surface->num_control_points_u + surface->degree_u + 1;
-    surface->num_knots_v = surface->num_control_points_v + surface->degree_v + 1;
-    
-    // U direction (circular)
-    for (int i = 0; i < surface->num_knots_u; i++) {
-        surface->knots_u[i] = (float)i / (surface->num_knots_u - 1);
-    }
-    
-    // V direction (linear)
-    surface->knots_v[0] = 0.0f; surface->knots_v[1] = 0.0f;
-    surface->knots_v[2] = 1.0f; surface->knots_v[3] = 1.0f;
-    
-    return surface;
+    g_free(object);
 }
 
-NURBSSurface* create_nurbs_torus(float major_radius, float minor_radius) {
-    NURBSSurface *surface = malloc(sizeof(NURBSSurface));
-    surface->degree_u = 2;
-    surface->degree_v = 2;
-    surface->num_control_points_u = 9; // For major circle
-    surface->num_control_points_v = 9; // For minor circle
+void generate_uniform_knots(float *knots, int num_knots, int degree) {
+    if (!knots) return;
     
-    // Create toroidal control points
-    for (int i = 0; i < surface->num_control_points_u; i++) {
-        float u_angle = (float)i / (surface->num_control_points_u - 1) * 2.0f * M_PI;
-        float u_weight = (i % 2 == 0) ? 1.0f : 1.0f / sqrtf(2.0f);
-        
-        for (int j = 0; j < surface->num_control_points_v; j++) {
-            float v_angle = (float)j / (surface->num_control_points_v - 1) * 2.0f * M_PI;
-            float v_weight = (j % 2 == 0) ? 1.0f : 1.0f / sqrtf(2.0f);
-            
-            float center_x = (major_radius + minor_radius * cosf(v_angle)) * cosf(u_angle);
-            float center_y = minor_radius * sinf(v_angle);
-            float center_z = (major_radius + minor_radius * cosf(v_angle)) * sinf(u_angle);
-            
-            surface->control_points[i][j] = (Vector4){
-                center_x, center_y, center_z,
-                u_weight * v_weight
-            };
-        }
+    int num_interior = num_knots - 2 * (degree + 1);
+    
+    // Set initial knots to 0
+    for (int i = 0; i <= degree; i++) {
+        knots[i] = 0.0f;
     }
     
-    // Set up knot vectors (both periodic)
-    surface->num_knots_u = surface->num_control_points_u + surface->degree_u + 1;
-    surface->num_knots_v = surface->num_control_points_v + surface->degree_v + 1;
-    
-    for (int i = 0; i < surface->num_knots_u; i++) {
-        surface->knots_u[i] = (float)i / (surface->num_knots_u - 1);
-    }
-    for (int i = 0; i < surface->num_knots_v; i++) {
-        surface->knots_v[i] = (float)i / (surface->num_knots_v - 1);
+    // Set interior knots
+    for (int i = 0; i < num_interior; i++) {
+        knots[degree + 1 + i] = (float)(i + 1) / (num_interior + 1);
     }
     
-    return surface;
-}
-
-// Memory management
-void free_tessellated_surface(TessellatedSurface *surface) {
-    if (surface) {
-        if (surface->points) free(surface->points);
-        if (surface->indices) free(surface->indices);
-        glDeleteVertexArrays(1, &surface->vao);
-        glDeleteBuffers(1, &surface->vbo);
-        glDeleteBuffers(1, &surface->ebo);
-        free(surface);
-    }
-}
-
-void free_nurbs_surface(NURBSSurface *surface) {
-    if (surface) {
-        free(surface);
+    // Set final knots to 1
+    for (int i = 0; i <= degree; i++) {
+        knots[num_knots - degree - 1 + i] = 1.0f;
     }
 }
