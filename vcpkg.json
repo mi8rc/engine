@@ -7,15 +7,15 @@
   "dependencies": [
     {
       "name": "gtk3",
-      "platform": "windows"
+      "platform": "windows & x64"
     },
     {
       "name": "glew",
-      "platform": "windows"
+      "platform": "windows & x64"
     },
     {
       "name": "opengl",
-      "platform": "windows"
+      "platform": "windows & x64"
     }
   ],
   "builtin-baseline": "2024.01.12"
