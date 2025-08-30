@@ -40,9 +40,7 @@ jobs:
 
     - name: Install dependencies with vcpkg
       run: |
-        .\vcpkg\vcpkg install gtk3:x64-windows
-        .\vcpkg\vcpkg install glew:x64-windows
-        .\vcpkg\vcpkg install opengl:x64-windows
+        .\vcpkg\vcpkg install --triplet x64-windows
 
     - name: Configure CMake
       run: |
