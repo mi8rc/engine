@@ -1,0 +1,464 @@
+/* NURBS Map Editor - Roblox Studio Inspired Theme */
+
+/* Global styles */
+* {
+    color: #FFFFFF;
+    font-family: 'Segoe UI', 'Ubuntu', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 12px;
+}
+
+/* Main window */
+window {
+    background-color: #2D2D30;
+    color: #FFFFFF;
+}
+
+/* Header bar */
+headerbar {
+    background: linear-gradient(to bottom, #3E3E42, #2D2D30);
+    border-bottom: 1px solid #464647;
+    color: #FFFFFF;
+}
+
+headerbar button {
+    background-color: transparent;
+    border: none;
+    color: #FFFFFF;
+}
+
+headerbar button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Menu bar */
+menubar {
+    background-color: #3E3E42;
+    border-bottom: 1px solid #464647;
+}
+
+menubar > menuitem {
+    padding: 8px 16px;
+    color: #FFFFFF;
+    border-radius: 0;
+}
+
+menubar > menuitem:hover {
+    background-color: #007ACC;
+}
+
+menubar > menuitem:selected {
+    background-color: #007ACC;
+}
+
+/* Menu items */
+menu {
+    background-color: #1E1E1E;
+    border: 1px solid #464647;
+    padding: 4px 0;
+}
+
+menuitem {
+    padding: 6px 16px;
+    color: #FFFFFF;
+}
+
+menuitem:hover {
+    background-color: #007ACC;
+}
+
+menuitem:disabled {
+    color: #808080;
+}
+
+/* Toolbar */
+toolbar {
+    background: linear-gradient(to bottom, #4D4D50, #3E3E42);
+    border-bottom: 1px solid #464647;
+    padding: 4px 8px;
+}
+
+toolbutton {
+    padding: 6px;
+    margin: 2px;
+    border-radius: 3px;
+    border: none;
+    background-color: transparent;
+}
+
+toolbutton:hover {
+    background-color: #007ACC;
+}
+
+toolbutton:active {
+    background-color: #005A9E;
+}
+
+/* Paned containers */
+paned {
+    background-color: #2D2D30;
+}
+
+paned > separator {
+    background-color: #464647;
+    min-width: 4px;
+    min-height: 4px;
+    border: none;
+}
+
+paned > separator:hover {
+    background-color: #007ACC;
+}
+
+/* Frames */
+frame {
+    background-color: #3E3E42;
+    border: 1px solid #464647;
+    border-radius: 4px;
+    margin: 4px;
+}
+
+frame > border {
+    border: none;
+}
+
+frame > label {
+    background-color: #3E3E42;
+    color: #CCCCCC;
+    font-weight: bold;
+    padding: 4px 8px;
+    margin: 0 8px;
+}
+
+/* Tree view (hierarchy panel) */
+treeview {
+    background-color: #2D2D30;
+    color: #FFFFFF;
+    border: 1px solid #464647;
+}
+
+treeview:selected {
+    background-color: #007ACC;
+    color: #FFFFFF;
+}
+
+treeview:selected:focus {
+    background-color: #007ACC;
+}
+
+treeview header {
+    background-color: #4D4D50;
+    border-bottom: 1px solid #464647;
+    color: #CCCCCC;
+}
+
+treeview header button {
+    background-color: transparent;
+    border: none;
+    color: #CCCCCC;
+    padding: 4px 8px;
+}
+
+treeview header button:hover {
+    background-color: #007ACC;
+    color: #FFFFFF;
+}
+
+/* Scrolled windows */
+scrolledwindow {
+    background-color: #2D2D30;
+    border: 1px solid #464647;
+}
+
+/* Scrollbars */
+scrollbar {
+    background-color: #3E3E42;
+    border: none;
+}
+
+scrollbar slider {
+    background-color: #686868;
+    border-radius: 6px;
+    min-width: 12px;
+    min-height: 12px;
+    border: none;
+}
+
+scrollbar slider:hover {
+    background-color: #9E9E9E;
+}
+
+scrollbar slider:active {
+    background-color: #007ACC;
+}
+
+scrollbar button {
+    background-color: #3E3E42;
+    color: #CCCCCC;
+    border: none;
+}
+
+scrollbar button:hover {
+    background-color: #4D4D50;
+}
+
+/* Entry widgets */
+entry {
+    background-color: #1E1E1E;
+    color: #FFFFFF;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    padding: 6px 8px;
+    selection-background-color: #007ACC;
+}
+
+entry:focus {
+    border-color: #007ACC;
+    box-shadow: 0 0 0 1px #007ACC;
+}
+
+entry:disabled {
+    background-color: #2D2D30;
+    color: #808080;
+}
+
+/* Spin buttons */
+spinbutton {
+    background-color: #1E1E1E;
+    color: #FFFFFF;
+    border: 1px solid #464647;
+    border-radius: 3px;
+}
+
+spinbutton:focus {
+    border-color: #007ACC;
+}
+
+spinbutton button {
+    background-color: #3E3E42;
+    border: none;
+    color: #CCCCCC;
+}
+
+spinbutton button:hover {
+    background-color: #007ACC;
+    color: #FFFFFF;
+}
+
+/* Buttons */
+button {
+    background: linear-gradient(to bottom, #0E639C, #005A9E);
+    color: #FFFFFF;
+    border: 1px solid #007ACC;
+    border-radius: 3px;
+    padding: 6px 16px;
+    font-weight: 500;
+}
+
+button:hover {
+    background: linear-gradient(to bottom, #1177BB, #0E639C);
+    border-color: #1177BB;
+}
+
+button:active {
+    background: linear-gradient(to bottom, #005A9E, #004080);
+    border-color: #005A9E;
+}
+
+button:disabled {
+    background-color: #4D4D50;
+    color: #808080;
+    border-color: #464647;
+}
+
+/* Check buttons */
+checkbutton {
+    color: #FFFFFF;
+    spacing: 8px;
+}
+
+checkbutton check {
+    background-color: #1E1E1E;
+    border: 1px solid #464647;
+    border-radius: 2px;
+    min-width: 16px;
+    min-height: 16px;
+}
+
+checkbutton check:checked {
+    background-color: #007ACC;
+    border-color: #007ACC;
+    color: #FFFFFF;
+}
+
+checkbutton check:hover {
+    border-color: #007ACC;
+}
+
+/* Radio buttons */
+radiobutton {
+    color: #FFFFFF;
+    spacing: 8px;
+}
+
+radiobutton radio {
+    background-color: #1E1E1E;
+    border: 1px solid #464647;
+    border-radius: 8px;
+    min-width: 16px;
+    min-height: 16px;
+}
+
+radiobutton radio:checked {
+    background-color: #007ACC;
+    border-color: #007ACC;
+}
+
+/* Status bar */
+statusbar {
+    background-color: #007ACC;
+    color: #FFFFFF;
+    border-top: 1px solid #005A9E;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* GL Area */
+glarea {
+    background-color: #2D2D30;
+    border: 1px solid #464647;
+}
+
+/* List boxes */
+listbox {
+    background-color: #2D2D30;
+    border: 1px solid #464647;
+}
+
+listboxrow {
+    padding: 4px 8px;
+    color: #FFFFFF;
+}
+
+listboxrow:hover {
+    background-color: #3E3E42;
+}
+
+listboxrow:selected {
+    background-color: #007ACC;
+}
+
+/* Notebook (tabs) */
+notebook {
+    background-color: #2D2D30;
+}
+
+notebook header {
+    background-color: #3E3E42;
+    border-bottom: 1px solid #464647;
+}
+
+notebook tab {
+    background-color: #3E3E42;
+    border: 1px solid #464647;
+    border-bottom: none;
+    padding: 8px 16px;
+    margin-right: 2px;
+}
+
+notebook tab:checked {
+    background-color: #2D2D30;
+    border-bottom: 1px solid #2D2D30;
+}
+
+notebook tab:hover {
+    background-color: #4D4D50;
+}
+
+/* Separators */
+separator {
+    background-color: #464647;
+    min-width: 1px;
+    min-height: 1px;
+}
+
+/* Tooltips */
+tooltip {
+    background-color: #1E1E1E;
+    color: #FFFFFF;
+    border: 1px solid #464647;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* Progress bars */
+progressbar {
+    background-color: #3E3E42;
+    border: 1px solid #464647;
+    border-radius: 3px;
+}
+
+progressbar progress {
+    background-color: #007ACC;
+    border-radius: 2px;
+}
+
+/* Custom classes */
+.property-panel {
+    background-color: #3E3E42;
+    padding: 8px;
+}
+
+.property-row {
+    margin: 6px 0;
+}
+
+.property-label {
+    color: #CCCCCC;
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.hierarchy-panel {
+    background-color: #3E3E42;
+}
+
+.hierarchy-header {
+    background-color: #4D4D50;
+    padding: 8px 12px;
+    border-bottom: 1px solid #464647;
+    font-weight: bold;
+    color: #FFFFFF;
+}
+
+.viewport-container {
+    background-color: #2D2D30;
+    border: 1px solid #464647;
+}
+
+/* Grid styling for property panels */
+grid {
+    row-spacing: 4px;
+    column-spacing: 8px;
+}
+
+/* Box containers */
+box {
+    spacing: 4px;
+}
+
+/* Labels */
+label {
+    color: #FFFFFF;
+}
+
+label:disabled {
+    color: #808080;
+}
+
+/* Adjustments for better contrast */
+.dim-label {
+    color: #CCCCCC;
+    font-size: 11px;
+}
