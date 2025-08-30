@@ -1,0 +1,27 @@
+cmake_minimum_required(VERSION 3.10)
+project(NURBSMapEditor C)
+
+set(CMAKE_C_STANDARD 99)
+
+# Source files
+set(SOURCES
+    src/main.c
+    src/nurbs.c
+    src/fps_engine.c
+    src/map_loader.c
+    src/math_utils.c
+)
+
+# Create executable
+add_executable(${PROJECT_NAME} ${SOURCES})
+
+# Link libraries (minimal approach)
+target_link_libraries(${PROJECT_NAME} 
+    GL
+    GLU
+    glfw
+    m
+)
+
+# Include directories
+target_include_directories(${PROJECT_NAME} PRIVATE src)

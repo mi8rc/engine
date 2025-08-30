@@ -1,162 +1,145 @@
-#include "fps_engine.h"
-#include "map_loader.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <GL/gl.h>
+#include <GLFW/glfw3.h>
+#include "fps_engine.h"
+#include "nurbs.h"
+#include "map_loader.h"
 
-void create_demo_scene(FPSEngine *engine) {
-    // Create some demo NURBS objects
-    
-    // Create a NURBS plane floor
-    GameObject *floor = create_game_object("Floor", (Vector3){0.0f, -2.0f, 0.0f});
-    NURBSSurface *floor_surface = create_nurbs_plane(20.0f, 20.0f);
-    game_object_add_nurbs_surface(floor, floor_surface);
-    
-    // Set floor material
-    Material floor_material = {
-        .ambient = {0.1f, 0.3f, 0.1f},
-        .diffuse = {0.3f, 0.8f, 0.3f},
-        .specular = {0.1f, 0.1f, 0.1f},
-        .shininess = 4.0f
-    };
-    game_object_set_material(floor, floor_material);
-    world_add_object(&engine->world, floor);
-    
-    // Create some NURBS spheres
-    for (int i = 0; i < 5; i++) {
-        char name[32];
-        sprintf(name, "Sphere_%d", i);
-        
-        Vector3 position = {
-            (float)(i - 2) * 3.0f,
-            0.0f,
-            (float)(i % 2) * 3.0f - 1.5f
-        };
-        
-        GameObject *sphere = create_game_object(name, position);
-        NURBSSurface *sphere_surface = create_nurbs_sphere(1.0f);
-        game_object_add_nurbs_surface(sphere, sphere_surface);
-        
-        // Random material colors
-        Material sphere_material = {
-            .ambient = {0.1f, 0.1f, 0.1f},
-            .diffuse = {
-                0.3f + (float)i * 0.15f,
-                0.5f - (float)i * 0.1f,
-                0.8f - (float)i * 0.1f
-            },
-            .specular = {1.0f, 1.0f, 1.0f},
-            .shininess = 32.0f
-        };
-        game_object_set_material(sphere, sphere_material);
-        world_add_object(&engine->world, sphere);
-    }
-    
-    // Create some walls using NURBS planes
-    GameObject *wall1 = create_game_object("Wall1", (Vector3){-10.0f, 3.0f, 0.0f});
-    NURBSSurface *wall1_surface = create_nurbs_plane(2.0f, 6.0f);
-    game_object_add_nurbs_surface(wall1, wall1_surface);
-    
-    Material wall_material = {
-        .ambient = {0.2f, 0.2f, 0.3f},
-        .diffuse = {0.6f, 0.6f, 0.8f},
-        .specular = {0.3f, 0.3f, 0.3f},
-        .shininess = 16.0f
-    };
-    game_object_set_material(wall1, wall_material);
-    world_add_object(&engine->world, wall1);
-    
-    GameObject *wall2 = create_game_object("Wall2", (Vector3){10.0f, 3.0f, 0.0f});
-    NURBSSurface *wall2_surface = create_nurbs_plane(2.0f, 6.0f);
-    game_object_add_nurbs_surface(wall2, wall2_surface);
-    game_object_set_material(wall2, wall_material);
-    world_add_object(&engine->world, wall2);
-    
-    // Add some lights
-    Light main_light = {
-        .position = {0.0f, 8.0f, 0.0f},
-        .color = {1.0f, 1.0f, 1.0f},
-        .intensity = 1.5f,
-        .type = 0 // Point light
-    };
-    world_add_light(&engine->world, &main_light);
-    
-    Light accent_light1 = {
-        .position = {-5.0f, 3.0f, 5.0f},
-        .color = {1.0f, 0.7f, 0.3f},
-        .intensity = 0.8f,
-        .type = 0
-    };
-    world_add_light(&engine->world, &accent_light1);
-    
-    Light accent_light2 = {
-        .position = {5.0f, 3.0f, -5.0f},
-        .color = {0.3f, 0.7f, 1.0f},
-        .intensity = 0.8f,
-        .type = 0
-    };
-    world_add_light(&engine->world, &accent_light2);
-}
+// Window dimensions
+#define WINDOW_WIDTH 1200
+#define WINDOW_HEIGHT 800
 
-void game_object_set_material(GameObject *object, Material material) {
-    object->material = material;
-}
+// Global variables
+GLFWwindow* window = NULL;
+FPSEngine* engine = NULL;
 
-void world_update(World *world, float delta_time) {
-    // Update animations or object states here
-    // For now, just rotate some spheres
-    for (int i = 0; i < world->num_objects; i++) {
-        GameObject *obj = &world->objects[i];
-        if (strstr(obj->name, "Sphere") != NULL) {
-            obj->rotation.y += delta_time * 30.0f; // Rotate 30 degrees per second
-            if (obj->rotation.y > 360.0f) obj->rotation.y -= 360.0f;
-        }
-    }
-}
+// Forward declarations
+static void error_callback(int error, const char* description);
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+static int init_opengl(void);
+static void render_frame(void);
+static void cleanup(void);
 
-int main(int argc, char *argv[]) {
-    printf("NURBS FPS Game Engine\n");
-    printf("Controls:\n");
-    printf("  WASD - Move\n");
-    printf("  Mouse - Look around\n");
-    printf("  Space - Move up\n");
-    printf("  Shift - Move down\n");
-    printf("  Escape - Exit\n\n");
+int main(void) {
+    printf("NURBS Map Editor - Roblox Studio Style\n");
+    printf("=====================================\n");
     
-    FPSEngine engine;
+    // Initialize GLFW
+    glfwSetErrorCallback(error_callback);
     
-    // Initialize engine
-    if (fps_engine_init(&engine, 1200, 800, "NURBS FPS Game") != 0) {
-        fprintf(stderr, "Failed to initialize FPS engine\n");
+    if (!glfwInit()) {
+        fprintf(stderr, "Failed to initialize GLFW\n");
         return -1;
     }
     
-    // Check if a map file was provided
-    if (argc > 1) {
-        printf("Loading map file: %s\n", argv[1]);
-        
-        MapData map_data;
-        if (load_map_file(argv[1], &map_data) == 0) {
-            create_game_objects_from_map(&engine, &map_data);
-            free_map_data(&map_data);
-            printf("Map loaded successfully!\n");
-        } else {
-            printf("Failed to load map file. Using demo scene instead.\n");
-            create_demo_scene(&engine);
-        }
-    } else {
-        printf("No map file specified. Using demo scene.\n");
-        printf("Usage: %s [map_file.map]\n", argv[0]);
-        create_demo_scene(&engine);
+    // Configure OpenGL context
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    
+    // Create window
+    window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, 
+                             "NURBS Map Editor", NULL, NULL);
+    if (!window) {
+        fprintf(stderr, "Failed to create GLFW window\n");
+        glfwTerminate();
+        return -1;
     }
     
-    printf("Engine initialized successfully. Starting game loop...\n");
+    // Set up OpenGL context
+    glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     
-    // Run game loop
-    fps_engine_run(&engine);
+    // Initialize FPS Engine
+    engine = fps_engine_create();
+    if (!engine || fps_engine_init(engine, WINDOW_WIDTH, WINDOW_HEIGHT) != 0) {
+        fprintf(stderr, "Failed to initialize FPS engine\n");
+        cleanup();
+        return -1;
+    }
     
-    // Cleanup
-    fps_engine_cleanup(&engine);
+    printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
+    printf("Renderer: %s\n", glGetString(GL_RENDERER));
+    printf("NURBS Map Editor initialized successfully!\n");
     
-    printf("Game engine shut down successfully.\n");
+    // Main render loop
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+        
+        // Update engine
+        fps_engine_update(engine, 0.016f); // Assume 60 FPS
+        
+        // Render frame
+        fps_engine_render(engine);
+        
+        glfwSwapBuffers(window);
+    }
+    
+    cleanup();
     return 0;
+}
+
+static void error_callback(int error, const char* description) {
+    fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+}
+
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+}
+
+static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
+
+static int init_opengl(void) {
+    // Enable depth testing
+    glEnable(GL_DEPTH_TEST);
+    
+    // Set clear color (Roblox Studio-like background)
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    
+    return 0;
+}
+
+static void render_frame(void) {
+    // Clear buffers
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    // TODO: Render NURBS surfaces and UI
+    // For now, just render a simple colored background
+    
+    // Draw a simple grid to simulate the Roblox Studio viewport
+    glBegin(GL_LINES);
+    glColor3f(0.3f, 0.3f, 0.3f);
+    
+    // Draw grid lines
+    for (int i = -10; i <= 10; i++) {
+        // Horizontal lines
+        glVertex3f(-10.0f, 0.0f, (float)i);
+        glVertex3f(10.0f, 0.0f, (float)i);
+        
+        // Vertical lines
+        glVertex3f((float)i, 0.0f, -10.0f);
+        glVertex3f((float)i, 0.0f, 10.0f);
+    }
+    
+    glEnd();
+}
+
+static void cleanup(void) {
+    if (engine) {
+        fps_engine_destroy(engine);
+        engine = NULL;
+    }
+    if (window) {
+        glfwDestroyWindow(window);
+        window = NULL;
+    }
+    glfwTerminate();
 }
