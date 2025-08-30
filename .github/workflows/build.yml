@@ -30,13 +30,13 @@ jobs:
           mingw-w64-x86_64-pkg-config
           
     - name: Build project
-      shell: msys2 {0}
+
       run: |
-        echo "Attempting CMake build..."
-        mkdir -p build
+        
+        mkdir build
         cd build
         cmake .. -G "MinGW Makefiles"
-        make
+        make .
     - name: Package binary
       shell: msys2 {0}
       run: |
