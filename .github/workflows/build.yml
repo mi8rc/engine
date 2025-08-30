@@ -34,41 +34,17 @@ jobs:
         echo "Attempting CMake build..."
         mkdir -p build
         cd build
-        if cmake .. -G "MinGW Makefiles"; then
-          echo "CMake successful, building with make..."
-          make -j$(nproc)
-        else
-          echo "CMake failed, trying simple Makefile..."
-          cd ..
-          cp Makefile.simple Makefile
-          make -j$(nproc)
-        fi
-        
+        cmake .. -G "MinGW Makefiles"
+        make
     - name: Package binary
       shell: msys2 {0}
       run: |
         mkdir -p release
-        # Check if CMake build succeeded
-        if [ -f build/NURBSMapEditor.exe ]; then
-          echo "Using CMake build..."
-          cp build/NURBSMapEditor.exe release/
-          # Copy required DLLs
-          ldd build/NURBSMapEditor.exe | grep mingw64 | awk '{print $3}' | xargs -I {} cp {} release/ || true
-        elif [ -f NURBSMapEditor.exe ]; then
-          echo "Using Makefile build..."
-          cp NURBSMapEditor.exe release/
-          # Copy required DLLs
-          ldd NURBSMapEditor.exe | grep mingw64 | awk '{print $3}' | xargs -I {} cp {} release/ || true
-        else
-          echo "No executable found! Build failed."
-          exit 1
-        fi
-        echo "Binary packaged successfully!"
-        ls -la release/
+
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: nurbs-map-editor-windows
-        path: release/
+        path: .
         retention-days: 30
